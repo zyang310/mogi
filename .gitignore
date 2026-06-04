@@ -30,3 +30,12 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Wails
+ai-interviewer
+build/bin
+frontend/dist
+frontend/node_modules
+
+# macOS
+.DS_Store
