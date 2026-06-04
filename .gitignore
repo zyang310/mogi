@@ -37,5 +37,13 @@ build/bin
 frontend/dist
 frontend/node_modules
 
+# SQLite database files
+*.db
+*.db-wal
+*.db-shm
+
 # macOS
 .DS_Store
+
+# Wails generated checksum
+frontend/package.json.md5

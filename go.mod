@@ -3,6 +3,7 @@ module ai-interviewer
 go 1.25.0
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
 	github.com/mattn/go-sqlite3 v1.14.44
 	github.com/wailsapp/wails/v2 v2.12.0
@@ -15,7 +16,6 @@ require (
 	github.com/gen2brain/shm v0.1.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
 	github.com/jezek/xgb v1.1.1 // indirect
