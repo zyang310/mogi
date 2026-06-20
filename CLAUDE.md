@@ -2,17 +2,25 @@
 
 ## Project overview
 
-This is a desktop application that acts as a live AI-powered mock coding interview coach. The user codes in their own IDE while the app captures their screen, listens to their voice, and provides real-time interviewer feedback through an AI assistant. The AI behaves like a real technical interviewer — Socratic, nudging, never giving away answers.
+This is a desktop application that acts as a live AI-powered mock coding interview coach. The user codes in their own IDE or a browser tab (VS Code, IntelliJ, terminal, LeetCode, NeetCode) while the app watches their screen and provides real-time interviewer feedback through an AI assistant. The AI behaves like a real technical interviewer — Socratic, nudging, never giving away answers.
+
+**The app is screen-driven:** there is no problem bank and no written problem statement. The interviewer reads both the problem *and* the candidate's current code directly from a screenshot of the user's screen.
+
+> **Current status** (keep this honest as the project moves):
+> - **Phase 1 (screen-driven, typed core loop) is built**, and the UI has been redesigned onto a Material Design 3 dark theme (floating pill nav, idle "Ready to Begin?" hub, active capture + chat).
+> - The **always-on-top floating overlay** bar (a Phase 4 item) was built early — entered via the "Compact" button during a session.
+> - **Voice (Phase 2) is NOT built yet.** The overlay's "Live" indicator and mic button are placeholders, and the transcript mirrors the latest AI text message.
+> - **Next up: Phase 2 — Voice.**
 
 ## Tech stack
 
-* Framework: Wails v2 — Go backend + web frontend in a single native binary, uses OS webview (no Chromium)
-* Backend: Go — handles screen capture, all external API calls (OpenRouter, ElevenLabs), local storage, and system-level operations
-* Frontend: React + TypeScript + Vite — UI for the interviewer chat, problem display, audio playback, settings, and session history
-* AI gateway: OpenRouter (https://openrouter.ai) — unified API for Claude, GPT-4, Gemini, etc. with OAuth PKCE for user auth
-* Voice I/O: ElevenLabs API via Go backend — TTS (text-to-speech) for interviewer voice using Flash v2.5 (~75ms latency, streaming), STT (speech-to-text) using Scribe v2 for transcribing user speech. All voice processing routes through Go so API keys never touch the frontend.
-* Screen capture: Go-native using `kbinani/screenshot` — periodic screenshots sent as base64 to the vision API
-* Local storage: SQLite via `mattn/go-sqlite3` — session history, user preferences, problem bank
+* Framework: Wails v2 — Go backend + web frontend in a single native binary, uses the OS webview (no Chromium). The window runs **frameless + transparent** so the overlay bar can float over the user's IDE.
+* Backend: Go — screen capture, all external API calls (OpenRouter; ElevenLabs once voice lands), local storage, and window/system operations.
+* Frontend: React + TypeScript + Vite — interviewer chat, screen-capture preview, settings, setup, and the floating overlay. **Styling is plain CSS using a Material Design 3 token system (CSS variables) — no Tailwind.**
+* AI gateway: OpenRouter (https://openrouter.ai) — unified API for Claude, GPT, Gemini, etc. Auth today is a **manual API key**; OAuth PKCE is planned (Phase 4).
+* Voice I/O (planned, Phase 2): ElevenLabs via the Go backend — TTS using Flash v2.5 (~75ms latency, streaming) and STT using Scribe v2. All voice will route through Go so API keys never touch the frontend.
+* Screen capture: Go-native via `kbinani/screenshot` (+ `golang.org/x/image` for cropping/encoding) — periodic screenshots, base64-encoded, sent to the vision model.
+* Local storage: SQLite via `mattn/go-sqlite3` — session history, user preferences, and API keys.
 
 ## Architecture
 
@@ -24,143 +32,136 @@ This is a desktop application that acts as a live AI-powered mock coding intervi
 │  │   Go Backend          │   │  React/TS Frontend   │  │
 │  │                       │   │                      │  │
 │  │  - Screen capture     │◄──┤  - Chat UI           │  │
-│  │  - OpenRouter API     │──►│  - Problem panel     │  │
-│  │  - ElevenLabs TTS/STT │   │  - Audio playback    │  │
-│  │  - SQLite store       │   │  - Mic recording     │  │
-│  │  - Session mgmt       │   │  - Settings/auth     │  │
+│  │  - OpenRouter API     │──►│  - Capture preview   │  │
+│  │  - ElevenLabs (Ph.2)  │   │  - Floating overlay  │  │
+│  │  - SQLite store       │   │  - Settings / setup  │  │
+│  │  - Window / overlay   │   │  - Mic record (Ph.2) │  │
 │  └──────────┬────────────┘   └──────────────────────┘  │
 │             │                         │                 │
 │             ▼                         ▼                 │
 │        OS native APIs          OS native webview        │
 └───────────────────────────────────────────────────────┘
               │
-              ├──► OpenRouter API ──► Claude / GPT-4 / Gemini
+              ├──► OpenRouter API ──► Claude / GPT / Gemini (vision)
               │
-              └──► ElevenLabs API ──► TTS (Flash v2.5) / STT (Scribe v2)
+              └──► ElevenLabs API ──► TTS (Flash v2.5) / STT (Scribe v2)   [planned]
 ```
 
-All external API calls (AI inference and voice) are centralized in the Go backend. The frontend handles UI rendering, mic recording (raw audio capture via MediaRecorder API), and audio playback only. API keys and tokens never touch the frontend layer.
+All external API calls are centralized in the Go backend. The frontend handles UI rendering only (and, in Phase 2, mic recording + audio playback). API keys and tokens never touch the frontend layer.
 
 ## Data flow (core interview loop)
 
-1. User codes in their own IDE (VS Code, IntelliJ, terminal, etc.)
-2. Go backend captures screen every N seconds via `kbinani/screenshot`
-3. User speaks (push-to-talk) — frontend records raw audio via MediaRecorder API, sends audio blob to Go backend
-4. Go backend sends audio to ElevenLabs Scribe v2 for transcription → receives text
-5. Go backend bundles: transcribed text + latest screenshot (base64) + conversation history + problem context
-6. Sends to OpenRouter API with the interviewer system prompt
-7. AI response text streams back → Go sends text to ElevenLabs TTS (Flash v2.5, streaming) → audio chunks stream to frontend
-8. Frontend renders text in chat panel and plays audio chunks via Web Audio API concurrently
-9. Session (transcript + timestamps) logged to SQLite
+The app is **screen-driven** — the problem is never sent as text; it lives in the screenshot.
+
+**Built today (typed):**
+1. User codes in their own IDE or browser (VS Code, IntelliJ, terminal, LeetCode/NeetCode).
+2. Go captures the selected display/region every N seconds via `kbinani/screenshot`.
+3. User types a message in the chat panel.
+4. Go bundles: the typed text + the **latest screenshot (base64)** + trimmed conversation history. **No problem statement is included — the screenshot carries the problem.**
+5. Sends to OpenRouter with the interviewer system prompt → returns the AI's text reply.
+6. Frontend renders the reply in chat (the overlay shows the latest interviewer line).
+7. Session transcript is logged to SQLite.
+
+**Planned (Phase 2 — voice):** push-to-talk → frontend records audio (MediaRecorder) → Go → ElevenLabs Scribe v2 (STT) → text → the same loop above → AI reply → ElevenLabs Flash v2.5 (streaming TTS) → audio chunks pushed to the frontend via Wails runtime events → Web Audio API playback.
 
 ## Project structure
 
 ```
-mock-interviewer/
+ai-interviewer/
 ├── CLAUDE.md
 ├── wails.json                  # Wails project config
-├── main.go                     # App entry point
-├── app.go                      # Core app struct, bound methods
+├── main.go                     # Entry point; frameless + transparent window options
+├── app.go                      # Core App struct + all bound methods (kept thin)
+├── go.mod / go.sum
 ├── internal/
-│   ├── capture/
-│   │   └── screen.go           # Screen capture logic (kbinani/screenshot)
 │   ├── ai/
-│   │   ├── client.go           # OpenRouter API client
-│   │   ├── models.go           # Request/response types
-│   │   └── prompts.go          # System prompts for interviewer persona
-│   ├── voice/
-│   │   ├── tts.go              # ElevenLabs TTS — text to streaming audio (Flash v2.5)
-│   │   ├── stt.go              # ElevenLabs Scribe v2 — audio to text transcription
-│   │   ├── voices.go           # Voice listing and selection
-│   │   └── models.go           # ElevenLabs request/response types
-│   ├── auth/
-│   │   ├── openrouter.go       # OAuth PKCE flow for OpenRouter
-│   │   └── keys.go             # Encrypted API key storage (ElevenLabs key)
-│   ├── store/
-│   │   ├── db.go               # SQLite initialization and migrations
-│   │   ├── sessions.go         # Session CRUD
-│   │   ├── problems.go         # Problem bank queries
-│   │   └── preferences.go     # User settings
-│   └── models/
-│       ├── session.go          # Session, Message structs
-│       └── problem.go          # Problem struct
+│   │   ├── client.go           # OpenRouter client (chat completions + vision)
+│   │   ├── prompts.go          # Interviewer system prompt (screen-driven)
+│   │   └── strip_test.go
+│   ├── capture/
+│   │   └── screen.go           # Screen capture + region cropping (kbinani/screenshot)
+│   ├── models/
+│   │   └── session.go          # Session, Message, SessionSummary, AuthStatus, Preferences
+│   └── store/
+│       ├── db.go               # SQLite init + migrations
+│       ├── sessions.go         # Session / message CRUD
+│       └── preferences.go      # User settings + API-key storage
 ├── frontend/
+│   ├── index.html              # Loads Geist, JetBrains Mono, Material Symbols
 │   ├── src/
-│   │   ├── App.tsx
+│   │   ├── App.tsx             # Shell: pill nav; idle hub vs active session vs overlay
 │   │   ├── main.tsx
+│   │   ├── style.css           # Global reset + MD3 design tokens (:root CSS variables)
+│   │   ├── App.css
 │   │   ├── components/
+│   │   │   ├── SetupPage.tsx       # First-run welcome + API key entry
+│   │   │   ├── HubReady.tsx        # Idle "Ready to Begin?" hub
+│   │   │   ├── CapturePanel.tsx    # "What the AI sees" preview (active session)
+│   │   │   ├── RegionSelector.tsx  # Pick a display / crop a capture region
 │   │   │   ├── Chat.tsx            # Interviewer chat panel
 │   │   │   ├── MessageBubble.tsx   # Individual message
-│   │   │   ├── ProblemPanel.tsx    # Problem description display
-│   │   │   ├── VoiceControls.tsx   # Mic toggle, voice status indicator
-│   │   │   ├── ModelPicker.tsx     # Model selection dropdown
-│   │   │   ├── VoicePicker.tsx     # ElevenLabs voice selection
-│   │   │   ├── SessionHistory.tsx  # Past interview sessions
-│   │   │   └── Settings.tsx        # Preferences, auth, capture interval
-│   │   ├── hooks/
-│   │   │   ├── useAudioRecorder.ts   # MediaRecorder wrapper — captures mic audio as blobs
-│   │   │   ├── useAudioPlayback.ts   # Web Audio API — plays streaming audio from Go backend
-│   │   │   └── useInterviewSession.ts
-│   │   ├── lib/
-│   │   │   └── wailsBridge.ts  # Typed wrappers around bound Go methods
-│   │   └── styles/
-│   │       └── globals.css
-│   ├── index.html
+│   │   │   ├── Overlay.tsx         # Always-on-top floating bar (Compact mode)
+│   │   │   ├── Settings.tsx        # Keys, capture interval, session time limit
+│   │   │   └── *.css               # One CSS file per component (MD3 tokens)
+│   │   └── lib/
+│   │       └── wailsBridge.ts  # Single import point for bound Go methods + models
+│   ├── wailsjs/                # Auto-generated bindings (do not hand-edit; `wails generate module`)
 │   ├── tsconfig.json
 │   ├── vite.config.ts
 │   └── package.json
-├── problems/
-│   └── seed.json               # Default problem bank (JSON seed data)
-└── build/
-    └── ...                     # Wails build output
+└── build/                      # Wails build output
+
+# Planned, not yet present:
+#   internal/voice/       (Phase 2 — ElevenLabs TTS/STT)
+#   internal/auth/        (Phase 4 — OAuth PKCE)
+#   frontend/src/hooks/   (useAudioRecorder, useAudioPlayback — Phase 2)
 ```
 
 ## Key Go bindings (exposed to frontend)
 
-These Go methods are callable from TypeScript as async functions. Wails auto-generates TS types from the Go structs.
+These `app.go` methods are callable from TypeScript as async functions via `lib/wailsBridge.ts`. Wails auto-generates the TS types from the Go structs.
 
 ```go
-// app.go — methods bound to frontend
-
-// Auth
-func (a *App) StartOAuthFlow() (string, error)       // Returns OpenRouter auth URL to open in browser
-func (a *App) CompleteOAuth(code string) error         // Exchanges code for token
-func (a *App) GetAuthStatus() AuthStatus               // Check if user is authenticated
-func (a *App) SetAPIKey(provider, key string) error    // Manual key entry fallback (supports "openrouter" and "elevenlabs")
+// Auth / keys   (OAuth PKCE is planned — Phase 4)
+func (a *App) GetAuthStatus() models.AuthStatus            // openRouterConfigured / elevenLabsConfigured
+func (a *App) SetAPIKey(provider, key string) error        // "openrouter" or "elevenlabs"
 
 // Interview
-func (a *App) SendMessage(text string) (string, error) // Send user message + screenshot to OpenRouter, returns AI text response
-func (a *App) StartSession(problemID string, model string) (Session, error)
-func (a *App) EndSession(sessionID string) (SessionSummary, error)
-
-// Voice — ElevenLabs (all processing happens in Go, frontend only records/plays audio)
-func (a *App) TranscribeAudio(audioBase64 string) (string, error) // Send recorded audio → ElevenLabs Scribe v2 → returns text
-func (a *App) SynthesizeSpeech(text string) (string, error)       // Send text → ElevenLabs TTS Flash v2.5 → returns audio base64
-func (a *App) ListVoices() ([]Voice, error)                        // Fetch available ElevenLabs voices
-func (a *App) SetVoice(voiceID string) error                       // Set preferred interviewer voice
+func (a *App) StartSession(model string) (models.Session, error)  // no problemID — screen-driven
+func (a *App) EndSession(sessionID string) error
+func (a *App) SendMessage(text string) (string, error)           // text + latest screenshot → OpenRouter → reply
 
 // Screen capture
-func (a *App) StartCapture(intervalMs int) error       // Begin periodic screen capture
+func (a *App) StartCapture(intervalMs int) error
 func (a *App) StopCapture() error
-func (a *App) GetLatestScreenshot() (string, error)    // Base64 encoded PNG
+func (a *App) GetLatestScreenshot() (string, error)              // base64 PNG of the cropped region
+func (a *App) ListDisplays() []capture.DisplayInfo
+func (a *App) SnapshotDisplay(displayIndex int) (string, error)  // for the region picker
+func (a *App) SetCaptureRegion(displayIndex int, x, y, w, h float64) error
 
-// Problems
-func (a *App) ListProblems() ([]Problem, error)
-func (a *App) GetProblem(id string) (Problem, error)
+// Window / overlay
+func (a *App) EnterOverlayMode()                  // shrink, pin always-on-top, park top-center
+func (a *App) ExitOverlayMode()                   // restore the full window
+func (a *App) SetOverlayExpanded(expanded bool)   // grow the overlay window for the history dropdown
 
 // Sessions
-func (a *App) ListSessions() ([]SessionSummary, error)
-func (a *App) GetSessionTranscript(id string) ([]Message, error)
+func (a *App) ListSessions() ([]models.SessionSummary, error)
+func (a *App) GetSessionTranscript(id string) ([]models.Message, error)
 
 // Settings
-func (a *App) GetPreferences() (Preferences, error)
-func (a *App) UpdatePreferences(prefs Preferences) error
-func (a *App) ListAvailableModels() ([]Model, error)   // Fetch from OpenRouter
+func (a *App) GetPreferences() (models.Preferences, error)
+func (a *App) UpdatePreferences(prefs models.Preferences) error
+
+// Voice — ElevenLabs (PLANNED, Phase 2; all processing in Go, frontend only records/plays audio)
+// func (a *App) TranscribeAudio(audioBase64 string) (string, error)  // Scribe v2
+// func (a *App) SynthesizeSpeech(text string) (string, error)        // Flash v2.5 (stream via Wails events)
+// func (a *App) ListVoices() ([]Voice, error)
+// func (a *App) SetVoice(voiceID string) error
 ```
 
 ## AI interviewer system prompt (core behavior)
 
-The system prompt is the most important tunable. The interviewer must:
+The system prompt (`internal/ai/prompts.go`) is the most important tunable. The interviewer must:
 
 * Never give away the answer or key insight
 * Use Socratic questioning: "What data structure could help you look things up in O(1)?"
@@ -171,7 +172,7 @@ The system prompt is the most important tunable. The interviewer must:
 * Only respond when spoken to — don't interrupt unprompted
 * Match the tone of a senior engineer, not a cheerful chatbot
 
-The system prompt receives the problem description and the latest screenshot on every message. The conversation history is included for continuity.
+**There is no written problem statement.** A screenshot of the candidate's current screen is attached to their **latest message only** — the interviewer reads the problem and the current code from it (it may show an IDE, a LeetCode/NeetCode page, a terminal, or a browser). Earlier messages do not carry screenshots; this is intentional. Conversation history is included for continuity. If the interviewer can't yet tell what the problem is, it asks the candidate to clarify rather than guessing.
 
 ## Coding conventions
 
@@ -186,90 +187,101 @@ The system prompt receives the problem description and the latest screenshot on 
 ### TypeScript / React
 
 * Functional components with hooks only
-* State management: React state + context (no Redux). Session state lives in `useInterviewSession` hook
-* Styling: CSS modules or Tailwind (decide during setup, but pick one)
+* State management: React state + props (no Redux). Session / overlay / view state lives in `App.tsx`
+* **Styling: plain CSS with the Material Design 3 token system — do not add Tailwind** (see Design system)
 * All Wails-bound Go calls go through `lib/wailsBridge.ts` for a single import point
 * Handle loading/error states for every async Go call
+
+### Design system
+
+* Material Design 3 dark theme. Tokens are CSS variables in `frontend/src/style.css` `:root` — e.g. `--background:#111317`, `--primary-container:#4d8eff`, `--secondary:#4edea3` (green accent), `--on-surface:#e2e2e8`, and `--level-1/2` glass surfaces.
+* Fonts: **Geist** (body), **JetBrains Mono** (timers/mono/code), **Material Symbols Outlined** (icons) — loaded in `frontend/index.html`.
+* Each component has its own `.css` file referencing `var(--token)`; `SetupPage.css` is the reference for established conventions.
+* The window is transparent, so full-screen views (`.app`, `.setup-root`) paint their own opaque background; the overlay (`.overlay-root`) stays transparent so the bar floats over the IDE.
+* Mockups come from Google Stitch (which emits Tailwind + an MD3 token config). Port them to these CSS variables — never add the Tailwind toolchain.
 
 ### General
 
 * Commit messages: conventional commits (`feat:`, `fix:`, `chore:`, `docs:`)
-* No hardcoded API keys anywhere — always runtime config or OAuth tokens
+* No hardcoded API keys anywhere — always runtime config (stored in SQLite) or OAuth tokens
 * Screen capture runs on a configurable interval (default 3 seconds)
 * All user data stays local (SQLite). No telemetry, no cloud sync.
 
 ## Development workflow
 
 ```bash
-# Scaffold the project
-wails init -n mock-interviewer -t react-ts
-
 # Dev mode (hot reload frontend + Go rebuild)
 wails dev
 
 # Build production binary
 wails build
 
-# Run frontend only (for UI work)
+# Regenerate TS bindings after adding/changing a bound Go method
+wails generate module
+
+# Frontend only (for UI work — Wails runtime calls no-op in the browser)
 cd frontend && npm run dev
 ```
 
 ## Implementation phases
 
-### Phase 1 — Core loop (MVP)
+### Phase 1 — Core loop (MVP) — ✅ Done
 
-* [ ] Wails project scaffold with React-TS template
-* [ ] Manual API key input for OpenRouter (skip OAuth for now)
-* [ ] Single hardcoded problem (Two Sum)
-* [ ] Screen capture on a timer → base64 encoding
-* [ ] Chat UI: send typed message + screenshot to OpenRouter → display response
-* [ ] Interviewer system prompt tuned for Socratic behavior
-* [ ] Basic SQLite schema: sessions and messages tables
+* [x] Wails + React-TS scaffold
+* [x] Manual API key input for OpenRouter (setup screen)
+* [x] **Screen-driven** — the AI reads the problem from the screen (replaced the original "single hardcoded Two Sum"; there is no problem bank)
+* [x] Screen capture on a timer → base64, with display + region selection
+* [x] Chat UI: typed message + screenshot → OpenRouter → display response
+* [x] Interviewer system prompt tuned for Socratic, screen-reading behavior
+* [x] SQLite schema: sessions + messages
 
-### Phase 2 — Voice integration (ElevenLabs)
+### Phase 2 — Voice integration (ElevenLabs) — ⏳ Next up (not started)
 
-* [ ] Manual API key input for ElevenLabs
-* [ ] Frontend mic recording via MediaRecorder API (push-to-talk, outputs audio blob)
-* [ ] Go backend: receive audio blob → send to ElevenLabs Scribe v2 → return transcribed text
-* [ ] Go backend: receive AI response text → send to ElevenLabs TTS Flash v2.5 (streaming) → return audio
-* [ ] Frontend audio playback via Web Audio API (play streamed chunks as they arrive)
-* [ ] Voice selection UI (fetch and display available ElevenLabs voices)
-* [ ] Visual indicators: recording state, AI speaking state, transcription in progress
+* [ ] Manual API key input for ElevenLabs (already collected on the setup screen; unused so far)
+* [ ] Frontend mic recording via MediaRecorder (push-to-talk → audio blob)
+* [ ] Go: audio blob → ElevenLabs Scribe v2 → transcribed text
+* [ ] Go: AI response text → ElevenLabs TTS Flash v2.5 (streaming) → audio
+* [ ] Frontend audio playback via Web Audio API (play chunks as they arrive)
+* [ ] Voice selection UI (fetch + display available ElevenLabs voices)
+* [ ] Visual indicators: recording / AI-speaking / transcribing — wire the overlay's "Live" + mic for real
+* [ ] (Pairs naturally) stream the AI text response so TTS can start sooner
 
-### Phase 3 — Problem bank and UX
+### Phase 3 — UX — ◑ Partial
 
-* [ ] Problem bank with multiple problems seeded from JSON
-* [ ] Problem selector UI with difficulty tags
+* [x] Settings panel (capture interval, session time limit, key management)
+* [x] Display / capture-region selection
 * [ ] Model picker (fetch available models from OpenRouter)
-* [ ] Session history list with transcript review
-* [ ] Settings panel (capture interval, voice selection, model preference, key management)
+* [ ] Session history view (bindings `ListSessions` / `GetSessionTranscript` exist; the History tab is a placeholder)
 * [ ] Keyboard shortcuts (push-to-talk, end session, toggle capture)
+* ~~Problem bank with JSON seed + problem selector~~ — **dropped (screen-driven design)**
 
-### Phase 4 — Auth and polish
+### Phase 4 — Auth and polish — ◑ Partial
 
-* [ ] OpenRouter OAuth PKCE flow (login button opens browser, callback completes auth)
-* [ ] Token and key persistence in SQLite (encrypted)
-* [ ] Always-on-top floating window mode
-* [ ] Post-interview debrief mode (AI drops interviewer persona, gives direct feedback)
+* [x] Always-on-top floating **overlay** mode (manual "Compact" toggle) + frameless/transparent window
+* [ ] OpenRouter OAuth PKCE flow
+* [ ] Encrypted token/key persistence (keys are stored in SQLite today, unencrypted)
+* [ ] Post-interview debrief mode (AI drops the interviewer persona, gives direct feedback)
 * [ ] Session export (markdown transcript with timestamps)
+* [ ] (Overlay follow-ups) auto-collapse on window blur; true see-through is in place, custom min/close controls optional
 
 ### Phase 5 — Stretch goals
 
 * [ ] Difficulty adaptation (AI adjusts hint level based on progress)
 * [ ] Timer / time pressure mode
 * [ ] Multi-problem interview sets (simulate a full interview round)
-* [ ] Custom problem import (paste a LeetCode URL, scrape description)
-* [ ] ElevenLabs voice cloning (user uploads interviewer voice sample)
+* [ ] ElevenLabs voice cloning (user uploads an interviewer voice sample)
 
 ## Key dependencies
 
 ### Go
 
 ```
-github.com/wailsapp/wails/v2              # Wails framework
-github.com/kbinani/screenshot              # Cross-platform screen capture
-github.com/mattn/go-sqlite3                # SQLite driver
-github.com/dhia-gharsallaoui/go-elevenlabs # ElevenLabs API client (TTS + STT, streaming, zero dependencies)
+github.com/wailsapp/wails/v2     # Wails framework
+github.com/kbinani/screenshot    # Cross-platform screen capture
+golang.org/x/image               # Image cropping / encoding for capture
+github.com/mattn/go-sqlite3      # SQLite driver
+github.com/google/uuid           # Session IDs
+# ElevenLabs (Phase 2) will be added when voice lands — direct HTTP or a client lib
 ```
 
 ### Frontend (npm)
@@ -277,37 +289,35 @@ github.com/dhia-gharsallaoui/go-elevenlabs # ElevenLabs API client (TTS + STT, s
 ```
 react, react-dom                 # UI framework
 typescript                       # Type safety
-vite                             # Build tool (included in Wails template)
+vite                             # Build tool (Wails template)
+# No Tailwind — plain CSS with MD3 tokens (see Design system)
 ```
 
-## ElevenLabs API reference
+## ElevenLabs API reference (Phase 2 — planned)
 
-Two endpoints are used. Both are called from the Go backend only.
+Two endpoints will be used, both called from the Go backend only.
 
 ### Text-to-Speech (streaming)
 
 `POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream`
 
-Returns raw audio bytes (MP3) via chunked transfer encoding. Frontend plays chunks as they arrive for minimal perceived latency. Use Flash v2.5 model for lowest latency (~75ms).
+Returns raw audio bytes (MP3) via chunked transfer encoding. The frontend plays chunks as they arrive for minimal perceived latency. Use Flash v2.5 for lowest latency (~75ms).
 
 ```json
 {
   "text": "Have you considered what happens with an empty array?",
   "model_id": "eleven_flash_v2_5",
-  "voice_settings": {
-    "stability": 0.5,
-    "similarity_boost": 0.75
-  }
+  "voice_settings": { "stability": 0.5, "similarity_boost": 0.75 }
 }
 ```
 
-Auth: `xi-api-key` header with ElevenLabs API key.
+Auth: `xi-api-key` header with the ElevenLabs API key.
 
 ### Speech-to-Text (Scribe v2)
 
 `POST https://api.elevenlabs.io/v1/speech-to-text`
 
-Accepts audio file upload (WAV, MP3, WebM), returns transcribed text. Frontend records audio via MediaRecorder API as WebM/opus, sends base64 blob to Go, Go forwards to Scribe.
+Accepts an audio file upload (WAV, MP3, WebM), returns transcribed text. The frontend records audio via MediaRecorder as WebM/opus, sends a base64 blob to Go, and Go forwards it to Scribe.
 
 ```
 Content-Type: multipart/form-data
@@ -317,13 +327,13 @@ Content-Type: multipart/form-data
 
 ### Cost model
 
-TTS is billed per character of input text. STT is billed per minute of audio. For a typical interview session (30-60 minutes, short interviewer responses of 1-3 sentences each), costs are minimal. Keep responses short to optimize both latency and cost.
+TTS is billed per character of input text; STT per minute of audio. For a typical session (30-60 min, short 1-3 sentence interviewer turns) costs are minimal. Keep responses short to optimize both latency and cost.
 
 ## OpenRouter API reference
 
 Base URL: `https://openrouter.ai/api/v1/chat/completions`
 
-Request format follows the OpenAI chat completions spec. Vision messages include image_url with base64 data URIs. Auth is via Bearer token (from OAuth or manual key entry).
+Request format follows the OpenAI chat completions spec. Vision messages include `image_url` with a base64 data URI. Auth is via Bearer token (manual key today; OAuth later). Note the screenshot rides on the latest user message; the system prompt contains no problem text.
 
 ```json
 {
@@ -334,10 +344,7 @@ Request format follows the OpenAI chat completions spec. Vision messages include
       "role": "user",
       "content": [
         { "type": "text", "text": "I think I should use a hashmap here" },
-        {
-          "type": "image_url",
-          "image_url": { "url": "data:image/png;base64,..." }
-        }
+        { "type": "image_url", "image_url": { "url": "data:image/png;base64,..." } }
       ]
     }
   ]
@@ -346,12 +353,13 @@ Request format follows the OpenAI chat completions spec. Vision messages include
 
 ## Notes
 
-* The app window should support an always-on-top mode so it floats over the user's IDE
-* Screen capture should exclude the app's own window if possible to avoid recursive capture
-* Voice input should have a clear visual indicator (recording state, transcribing state) so the user knows when they're being heard
-* The AI should not speak unless the user has spoken or typed first — no unprompted interruptions
-* Keep latency low: screenshot compression, conversation history trimming (last 10 exchanges), streaming TTS playback, and streaming AI responses all matter for the interview feel
-* All API keys (OpenRouter token, ElevenLabs key) are stored and used exclusively in the Go backend — the frontend never sees them
-* The frontend's only role in voice is: (1) recording raw audio from the mic via MediaRecorder API, (2) playing back audio bytes from Go via Web Audio API. All processing and API calls happen in Go.
-* ElevenLabs TTS audio should start playing as soon as the first chunks arrive, not after the full response is synthesized — use Wails runtime events to push audio chunks from Go to the frontend incrementally
-* For typed messages (no voice), skip both ElevenLabs endpoints — send text directly to OpenRouter and display the response as text only, with an optional "read aloud" button
+* The window runs **frameless + transparent**; the **overlay** bar floats always-on-top over the user's IDE. Enter it with the "Compact" button during a session; expand/restore from the bar controls. Frameless removes the native title bar app-wide — quit via Cmd+Q / the app menu.
+* The app is **screen-driven** — the AI reads the problem and code from the screenshot; no problem statement is sent.
+* Screen capture should exclude the app's own window where possible to avoid recursive capture.
+* The AI should not respond unless the user has typed (or, in Phase 2, spoken) first — no unprompted interruptions.
+* Keep latency low: screenshot compression, conversation history trimming (last ~10 exchanges), and — in Phase 2 — streaming TTS playback and streaming AI responses.
+* All API keys (OpenRouter token, ElevenLabs key) are stored and used exclusively in the Go backend (SQLite) — the frontend never sees them.
+* (Phase 2) The frontend's only voice role: record raw mic audio (MediaRecorder) and play audio bytes from Go (Web Audio API). All processing and API calls happen in Go.
+* (Phase 2) Push TTS audio chunks from Go to the frontend incrementally via Wails runtime events — start playing as soon as the first chunks arrive.
+* For typed messages, skip ElevenLabs entirely — send text straight to OpenRouter and display the reply as text, with an optional "read aloud" button later.
+```
