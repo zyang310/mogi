@@ -15,6 +15,11 @@ const (
 	openRouterURL  = "https://openrouter.ai/api/v1/chat/completions"
 	MaxHistoryMsgs = 20 // keep last 20 messages (10 exchanges) to limit cost/latency
 	httpTimeout    = 60 * time.Second
+	// maxResponseTokens caps the completion length. Interviewer replies are
+	// 1-3 sentences, so this is generous. It also matters for billing: without
+	// it, OpenRouter defaults to the model's full output limit (e.g. 64k) and
+	// pre-authorizes credits for that worst case, which 402s on low balances.
+	maxResponseTokens = 1024
 )
 
 // ChatMessage is a single message in the OpenRouter request format.
@@ -63,8 +68,9 @@ func (c *Client) Complete(ctx context.Context, model string, messages []ChatMess
 	trimmed := trimHistory(stripPastImages(messages))
 
 	payload := map[string]any{
-		"model":    model,
-		"messages": trimmed,
+		"model":      model,
+		"messages":   trimmed,
+		"max_tokens": maxResponseTokens,
 	}
 
 	body, err := json.Marshal(payload)
