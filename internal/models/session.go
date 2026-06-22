@@ -38,9 +38,10 @@ type AuthStatus struct {
 
 // Preferences holds user-configurable settings persisted in SQLite.
 type Preferences struct {
-	CaptureIntervalMs int    `json:"captureIntervalMs"` // default 3000
-	Model             string `json:"model"`              // default "anthropic/claude-sonnet-4"
-	VoiceID           string `json:"voiceId"`
+	CaptureIntervalMs int     `json:"captureIntervalMs"` // default 3000
+	Model             string  `json:"model"`             // default "anthropic/claude-sonnet-4"
+	VoiceID           string  `json:"voiceId"`
+	VoiceSpeed        float64 `json:"voiceSpeed"` // TTS playback rate, default 1.0 (range ~0.5–2.0)
 
 	// Capture region. Coordinates are fractions (0..1) of the chosen display;
 	// a zero RegionW means "capture the full display".

@@ -12,12 +12,20 @@ interface Props {
   onEnd: () => void;
   onExpand: () => void;
   onHistoryToggle: (open: boolean) => void;
+  // Voice state + handlers, owned by App.
+  recording: boolean;
+  transcribing: boolean;
+  speaking: boolean;
+  voiceMode: boolean;
+  onMicToggle: () => void;
+  onToggleVoice: () => void;
 }
 
 /**
  * Compact always-on-top overlay bar shown during an interview while the user
- * works in their own IDE. Voice (mic) is a placeholder until ElevenLabs STT is
- * wired — the transcript currently mirrors the latest interviewer message.
+ * works in their own IDE. The mic drives click-to-toggle recording, the speaker
+ * toggles voice mode, and the "Live" indicator + under-glow reflect the real
+ * voice state (recording / transcribing / the interviewer speaking).
  */
 export default function Overlay({
   messages,
@@ -25,15 +33,32 @@ export default function Overlay({
   onEnd,
   onExpand,
   onHistoryToggle,
+  recording,
+  transcribing,
+  speaking,
+  voiceMode,
+  onMicToggle,
+  onToggleVoice,
 }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [muted, setMuted] = useState(false);
 
   function toggleHistory() {
     const next = !historyOpen;
     setHistoryOpen(next);
     onHistoryToggle(next);
   }
+
+  // Live indicator reflects the current voice activity.
+  const liveLabel = recording
+    ? "Rec"
+    : transcribing
+      ? "···"
+      : speaking
+        ? "Speaking"
+        : "Live";
+  const liveClass = recording ? "is-recording" : speaking ? "is-speaking" : "";
+
+  const micIcon = transcribing ? "hourglass_top" : recording ? "stop" : "mic";
 
   return (
     <div className="overlay-root">
@@ -44,9 +69,9 @@ export default function Overlay({
         </div>
 
         {/* Live indicator */}
-        <div className="overlay-live">
+        <div className={`overlay-live ${liveClass}`}>
           <span className="overlay-live-dot" />
-          <span className="overlay-live-label">Live</span>
+          <span className="overlay-live-label">{liveLabel}</span>
         </div>
 
         {/* Real-time transcript (latest interviewer line) */}
@@ -65,11 +90,23 @@ export default function Overlay({
             <span className="material-symbols-outlined">history</span>
           </button>
           <button
-            className={`overlay-icon-btn${muted ? " is-muted" : ""}`}
-            onClick={() => setMuted((m) => !m)}
-            title="Microphone (voice coming soon)"
+            className={`overlay-icon-btn${voiceMode ? " is-active" : ""}`}
+            onClick={onToggleVoice}
+            title={voiceMode ? "Voice mode on — replies are spoken" : "Voice mode off"}
           >
-            <span className="material-symbols-outlined">{muted ? "mic_off" : "mic"}</span>
+            <span className="material-symbols-outlined">
+              {voiceMode ? "volume_up" : "volume_off"}
+            </span>
+          </button>
+          <button
+            className={`overlay-icon-btn${recording ? " is-recording" : ""}`}
+            onClick={onMicToggle}
+            disabled={transcribing}
+            title={recording ? "Stop and send" : "Speak your message"}
+          >
+            <span className={`material-symbols-outlined${transcribing ? " spin" : ""}`}>
+              {micIcon}
+            </span>
           </button>
           <button
             className="overlay-icon-btn"
@@ -85,7 +122,7 @@ export default function Overlay({
       </div>
 
       {/* Under-glow for AI presence */}
-      <div className="overlay-glow" />
+      <div className={`overlay-glow${speaking ? " is-speaking" : ""}`} />
 
       {/* Conversation history dropdown */}
       {historyOpen && (

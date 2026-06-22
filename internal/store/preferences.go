@@ -15,6 +15,7 @@ const (
 	keyCaptureIntervalMs   = "capture_interval_ms"
 	keyModel               = "model"
 	keyVoiceID             = "voice_id"
+	keyVoiceSpeed          = "voice_speed"
 	keyCaptureDisplay      = "capture_display"
 	keyRegionX             = "region_x"
 	keyRegionY             = "region_y"
@@ -51,6 +52,7 @@ func (db *DB) GetPreferences() (models.Preferences, error) {
 	p := models.Preferences{
 		CaptureIntervalMs:   3000,
 		Model:               "anthropic/claude-sonnet-4",
+		VoiceSpeed:          1.0,
 		SessionLimitMinutes: 30,
 		SoftWarningMinutes:  25,
 	}
@@ -65,6 +67,12 @@ func (db *DB) GetPreferences() (models.Preferences, error) {
 	}
 	if v, err := db.getPref(keyVoiceID); err == nil {
 		p.VoiceID = v
+	}
+	// Guard > 0 so a missing/zero stored value keeps the 1.0 default.
+	if v, err := db.getPref(keyVoiceSpeed); err == nil && v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+			p.VoiceSpeed = f
+		}
 	}
 	if v, err := db.getPref(keyCaptureDisplay); err == nil && v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -113,6 +121,9 @@ func (db *DB) SavePreferences(p models.Preferences) error {
 		return err
 	}
 	if err := db.setPref(keyVoiceID, p.VoiceID); err != nil {
+		return err
+	}
+	if err := db.setPref(keyVoiceSpeed, strconv.FormatFloat(p.VoiceSpeed, 'f', -1, 64)); err != nil {
 		return err
 	}
 	if err := db.setPref(keyCaptureDisplay, strconv.Itoa(p.CaptureDisplay)); err != nil {

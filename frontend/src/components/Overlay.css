@@ -91,6 +91,26 @@
   color: var(--secondary);
 }
 
+/* Recording — red dot + label. */
+.overlay-live.is-recording .overlay-live-dot,
+.overlay-live.is-recording .overlay-live-dot::before {
+  background: var(--error);
+}
+
+.overlay-live.is-recording .overlay-live-label {
+  color: var(--error);
+}
+
+/* Interviewer speaking — primary-tinted dot + label. */
+.overlay-live.is-speaking .overlay-live-dot,
+.overlay-live.is-speaking .overlay-live-dot::before {
+  background: var(--primary);
+}
+
+.overlay-live.is-speaking .overlay-live-label {
+  color: var(--primary);
+}
+
 /* Transcript */
 .overlay-transcript {
   flex: 1;
@@ -154,7 +174,7 @@
   color: var(--primary);
 }
 
-.overlay-icon-btn.is-muted {
+.overlay-icon-btn.is-recording {
   color: var(--error);
 }
 
@@ -196,6 +216,13 @@
   background: var(--secondary);
   opacity: 0.2;
   filter: blur(12px);
+  transition: background-color 0.3s, opacity 0.3s;
+}
+
+/* Brighten the glow while the interviewer is speaking. */
+.overlay-glow.is-speaking {
+  background: var(--primary);
+  opacity: 0.45;
 }
 
 /* ── History dropdown ─────────────────────────────────────────────────── */

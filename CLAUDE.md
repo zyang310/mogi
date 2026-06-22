@@ -13,7 +13,8 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 - **Wails v2** — Go backend + web frontend in one native binary, OS webview (no Chromium). Window runs **frameless + transparent** so the overlay can float over the user's IDE.
 - **Go backend** — screen capture, all external API calls, SQLite, window/overlay control.
 - **Frontend** — React + TypeScript + Vite. **Styling is plain CSS with Material Design 3 tokens (CSS variables) — no Tailwind.**
-- **AI** — OpenRouter (vision models) via the Go backend. **Voice (ElevenLabs) is planned, not built** (Phase 2).
+- **AI** — OpenRouter (vision models) via the Go backend.
+- **Voice** — ElevenLabs via the Go backend: Scribe (STT) + Flash (TTS), **non-streaming** v1. The frontend only records the mic (`MediaRecorder`) and plays returned audio; all API calls happen in Go.
 - **Deps** — `kbinani/screenshot` + `golang.org/x/image` (capture), `mattn/go-sqlite3` (storage), `google/uuid`.
 
 ## Codebase map (where things live)
@@ -23,12 +24,13 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 | `main.go` | Entry point; Wails window options (frameless + transparent). |
 | `app.go` | **All** Wails-bound methods. Kept thin — delegates to `internal/`. |
 | `internal/ai/` | OpenRouter client (`client.go`) + interviewer system prompt (`prompts.go`). |
+| `internal/voice/` | ElevenLabs client (`client.go`): Scribe STT, Flash TTS, voice catalog. |
 | `internal/capture/` | Screen capture + region cropping. |
 | `internal/store/` | SQLite: sessions, preferences, API keys. |
-| `internal/models/` | Structs that cross the Wails boundary (Session, Message, Preferences, AuthStatus). |
+| `internal/models/` | Structs that cross the Wails boundary (Session, Message, Preferences, AuthStatus, Model, Voice). |
 | `frontend/src/App.tsx` | UI shell: floating pill nav → idle hub / active session / overlay. |
-| `frontend/src/components/` | One component + its own CSS each (SetupPage, HubReady, CapturePanel, RegionSelector, Chat, MessageBubble, Overlay, Settings). |
-| `frontend/src/lib/wailsBridge.ts` | **Single import point** for every bound Go method + models. |
+| `frontend/src/components/` | One component + its own CSS each (SetupPage, HubReady, CapturePanel, RegionSelector, Chat, MessageBubble, Overlay, Settings, ModelPicker, VoicePicker). |
+| `frontend/src/lib/` | `wailsBridge.ts` (single import point for bound Go methods + models) + hooks (`useVoiceRecorder`, `useAudioPlayer`). |
 | `frontend/src/style.css` | MD3 design tokens (`:root` CSS variables) + global reset. |
 | `frontend/wailsjs/` | Auto-generated bindings — **do not hand-edit**. |
 | `docs/` | Roadmap, architecture reference, feature plans. |
@@ -61,3 +63,4 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 - [docs/roadmap.md](docs/roadmap.md) — phases & current status
 - [docs/architecture.md](docs/architecture.md) — data flow, full bindings, prompt spec, OpenRouter/ElevenLabs API contracts
 - [docs/model-picker-plan.md](docs/model-picker-plan.md) — model picker design reference (Phase 3, implemented)
+- [docs/voice-integration-plan.md](docs/voice-integration-plan.md) — voice (ElevenLabs) implementation plan (Phase 2)

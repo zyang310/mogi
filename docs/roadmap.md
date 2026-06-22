@@ -6,8 +6,8 @@
 
 - **Phase 1 (screen-driven, typed core loop) is built**, and the UI has been redesigned onto a Material Design 3 dark theme (floating pill nav, idle "Ready to Begin?" hub, active capture + chat).
 - The **always-on-top floating overlay** bar (a Phase 4 item) was built early — entered via the "Compact" button during a session.
-- **Voice (Phase 2) is NOT built yet.** The overlay's "Live" indicator and mic button are placeholders, and the transcript mirrors the latest AI text message.
-- **Next up: Phase 2 — Voice.**
+- **Voice (Phase 2) is built (non-streaming v1).** Click-to-toggle mic → ElevenLabs Scribe (STT) → the normal interview loop → ElevenLabs Flash (TTS) spoken reply when "voice mode" is on. Voice selection lives in Settings; the overlay's "Live" indicator + mic are wired for real. Streaming TTS/AI-text is deferred.
+- **Next up: Phase 3 — UX** (session history view, keyboard shortcuts incl. global push-to-talk).
 
 ## Implementation phases
 
@@ -21,16 +21,19 @@
 - [x] Interviewer system prompt tuned for Socratic, screen-reading behavior
 - [x] SQLite schema: sessions + messages
 
-### Phase 2 — Voice integration (ElevenLabs) — ⏳ Next up (not started)
+### Phase 2 — Voice integration (ElevenLabs) — ✅ Done (non-streaming v1)
 
-- [ ] Manual API key input for ElevenLabs (already collected on the setup screen; unused so far)
-- [ ] Frontend mic recording via MediaRecorder (push-to-talk → audio blob)
-- [ ] Go: audio blob → ElevenLabs Scribe v2 → transcribed text
-- [ ] Go: AI response text → ElevenLabs TTS Flash v2.5 (streaming) → audio
-- [ ] Frontend audio playback via Web Audio API (play chunks as they arrive)
-- [ ] Voice selection UI (fetch + display available ElevenLabs voices)
-- [ ] Visual indicators: recording / AI-speaking / transcribing — wire the overlay's "Live" + mic for real
-- [ ] (Pairs naturally) stream the AI text response so TTS can start sooner
+> Detailed, sequenced implementation breakdown: [voice-integration-plan.md](voice-integration-plan.md).
+
+- [x] Manual API key input for ElevenLabs (collected on setup, restored into a `voice.Client`)
+- [x] Frontend mic recording via MediaRecorder (click-to-toggle push-to-talk → audio blob, `useVoiceRecorder`)
+- [x] Go: audio blob → ElevenLabs Scribe v2 → transcribed text (`internal/voice`, `TranscribeAudio`)
+- [x] Go: AI response text → ElevenLabs TTS Flash v2.5 → audio (`SynthesizeSpeech`; non-streaming)
+- [x] Frontend audio playback (`useAudioPlayer`; plays the full clip — non-streaming v1)
+- [x] Voice selection UI (`ListVoices` + `VoicePicker` in Settings → persists `Preferences.VoiceID`)
+- [x] Visual indicators: recording / AI-speaking / transcribing — overlay "Live" + mic wired for real
+- [ ] Stream the AI text response so TTS can start sooner — **deferred** (see Out of scope in the plan)
+- [ ] Streaming TTS (chunked playback) — **deferred**; non-streaming suffices for short replies
 
 ### Phase 3 — UX — ◑ Partial
 

@@ -112,6 +112,7 @@ export namespace models {
 	    captureIntervalMs: number;
 	    model: string;
 	    voiceId: string;
+	    voiceSpeed: number;
 	    captureDisplay: number;
 	    regionX: number;
 	    regionY: number;
@@ -129,6 +130,7 @@ export namespace models {
 	        this.captureIntervalMs = source["captureIntervalMs"];
 	        this.model = source["model"];
 	        this.voiceId = source["voiceId"];
+	        this.voiceSpeed = source["voiceSpeed"];
 	        this.captureDisplay = source["captureDisplay"];
 	        this.regionX = source["regionX"];
 	        this.regionY = source["regionY"];
@@ -216,6 +218,24 @@ export namespace models {
 		    }
 		    return a;
 		}
+	}
+	export class Voice {
+	    id: string;
+	    name: string;
+	    category: string;
+	    previewUrl: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Voice(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.category = source["category"];
+	        this.previewUrl = source["previewUrl"];
+	    }
 	}
 
 }

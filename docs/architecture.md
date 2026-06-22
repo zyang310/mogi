@@ -24,7 +24,7 @@
               │
               ├──► OpenRouter API ──► Claude / GPT / Gemini (vision)
               │
-              └──► ElevenLabs API ──► TTS (Flash v2.5) / STT (Scribe v2)   [planned]
+              └──► ElevenLabs API ──► TTS (Flash v2.5) / STT (Scribe v2)   [built, non-streaming]
 ```
 
 All external API calls are centralized in the Go backend. The frontend handles UI rendering only (and, in Phase 2, mic recording + audio playback). API keys and tokens never touch the frontend layer.
@@ -42,7 +42,7 @@ The app is **screen-driven** — the problem is never sent as text; it lives in 
 6. Frontend renders the reply in chat (the overlay shows the latest interviewer line).
 7. Session transcript is logged to SQLite.
 
-**Planned (Phase 2 — voice):** push-to-talk → frontend records audio (MediaRecorder) → Go → ElevenLabs Scribe v2 (STT) → text → the same loop above → AI reply → ElevenLabs Flash v2.5 (streaming TTS) → audio chunks pushed to the frontend via Wails runtime events → Web Audio API playback.
+**Built (Phase 2 — voice, non-streaming v1):** click-to-toggle mic → frontend records audio (`MediaRecorder`, `useVoiceRecorder`) → base64 → Go `TranscribeAudio` → ElevenLabs Scribe v2 (STT) → text → the same loop above → AI reply → (when "voice mode" is on) Go `SynthesizeSpeech` → ElevenLabs Flash v2.5 (TTS) → base64 MP3 → frontend plays the full clip (`useAudioPlayer`). Streaming TTS (chunked via Wails events) and streaming AI text are deferred — see [voice-integration-plan.md](voice-integration-plan.md).
 
 ## Key Go bindings (exposed to frontend)
 
@@ -82,11 +82,11 @@ func (a *App) UpdatePreferences(prefs models.Preferences) error
 // Models
 func (a *App) ListAvailableModels() ([]models.Model, error)  // OpenRouter catalog for the picker (cached ~1h)
 
-// Voice — ElevenLabs (PLANNED, Phase 2; all processing in Go, frontend only records/plays audio)
-// func (a *App) TranscribeAudio(audioBase64 string) (string, error)  // Scribe v2
-// func (a *App) SynthesizeSpeech(text string) (string, error)        // Flash v2.5 (stream via Wails events)
-// func (a *App) ListVoices() ([]Voice, error)
-// func (a *App) SetVoice(voiceID string) error
+// Voice — ElevenLabs (built, non-streaming v1; all processing in Go, frontend only records/plays audio)
+func (a *App) TranscribeAudio(audioBase64, mimeType string) (string, error) // Scribe v2 (STT)
+func (a *App) SynthesizeSpeech(text string) (string, error)                 // Flash v2.5 (TTS) → base64 MP3
+func (a *App) ListVoices() ([]models.Voice, error)                          // /v1/voices for the picker
+// Saving a voice needs no binding — VoicePicker writes Preferences.VoiceID via UpdatePreferences.
 ```
 
 ## AI interviewer system prompt (core behavior)
@@ -104,37 +104,35 @@ The system prompt ([../internal/ai/prompts.go](../internal/ai/prompts.go)) is th
 
 **There is no written problem statement.** A screenshot of the candidate's current screen is attached to their **latest message only** — the interviewer reads the problem and the current code from it (it may show an IDE, a LeetCode/NeetCode page, a terminal, or a browser). Earlier messages do not carry screenshots; this is intentional. Conversation history is included for continuity. If the interviewer can't yet tell what the problem is, it asks the candidate to clarify rather than guessing.
 
-## ElevenLabs API reference (Phase 2 — planned)
+## ElevenLabs API reference (Phase 2 — built, non-streaming v1)
 
-Two endpoints will be used, both called from the Go backend only.
+Three endpoints are used, all called from the Go backend only (`internal/voice/client.go`). Auth is the `xi-api-key` header.
 
-### Text-to-Speech (streaming)
+### Text-to-Speech (non-streaming)
 
-`POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream`
+`POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}`
 
-Returns raw audio bytes (MP3) via chunked transfer encoding. The frontend plays chunks as they arrive for minimal perceived latency. Use Flash v2.5 for lowest latency (~75ms).
+Returns the full MP3 as bytes; Go base64-encodes them for the Wails boundary and the frontend plays the whole clip. Flash v2.5 keeps latency low (~75ms) and replies are short, so one-shot synthesis is fine. (The `/stream` variant + chunked Web Audio playback is a deferred follow-up.)
 
 ```json
-{
-  "text": "Have you considered what happens with an empty array?",
-  "model_id": "eleven_flash_v2_5",
-  "voice_settings": { "stability": 0.5, "similarity_boost": 0.75 }
-}
+{ "text": "Have you considered what happens with an empty array?", "model_id": "eleven_flash_v2_5" }
 ```
-
-Auth: `xi-api-key` header with the ElevenLabs API key.
 
 ### Speech-to-Text (Scribe v2)
 
 `POST https://api.elevenlabs.io/v1/speech-to-text`
 
-Accepts an audio file upload (WAV, MP3, WebM), returns transcribed text. The frontend records audio via MediaRecorder as WebM/opus, sends a base64 blob to Go, and Go forwards it to Scribe.
+Accepts an audio file upload, returns transcribed text. The frontend records via `MediaRecorder` (WebM/opus on Chromium, **audio/mp4 on macOS WKWebView**), sends a base64 blob + its MIME type to Go, and Go forwards it to Scribe with a matching filename extension. `scribe_v1` is deprecated (removed 2026-07-09); use `scribe_v2`.
 
 ```
 Content-Type: multipart/form-data
 - file: audio blob
 - model_id: "scribe_v2"
 ```
+
+### Voices
+
+`GET https://api.elevenlabs.io/v1/voices` → `{ voices: [ { voice_id, name, category, preview_url } ] }`, cached ~1h. Feeds the Settings `VoicePicker`; the chosen id persists to `Preferences.VoiceID`.
 
 ### Cost model
 
@@ -168,7 +166,7 @@ To list selectable models: `GET https://openrouter.ai/api/v1/models` (see [model
 
 - The window runs **frameless + transparent**; the **overlay** bar floats always-on-top over the user's IDE. Enter it with the "Compact" button during a session; expand/restore from the bar controls. Frameless removes the native title bar app-wide — quit via Cmd+Q / the app menu.
 - Screen capture should exclude the app's own window where possible to avoid recursive capture.
-- Keep latency low: screenshot compression, conversation history trimming (last ~10 exchanges, `MaxHistoryMsgs` in `../internal/ai/client.go`), and — in Phase 2 — streaming TTS playback and streaming AI responses.
-- (Phase 2) The frontend's only voice role: record raw mic audio (MediaRecorder) and play audio bytes from Go (Web Audio API). All processing and API calls happen in Go.
-- (Phase 2) Push TTS audio chunks from Go to the frontend incrementally via Wails runtime events — start playing as soon as the first chunks arrive.
-- For typed messages, skip ElevenLabs entirely — send text straight to OpenRouter and display the reply as text, with an optional "read aloud" button later.
+- Keep latency low: screenshot compression, conversation history trimming (last ~10 exchanges, `MaxHistoryMsgs` in `../internal/ai/client.go`). Streaming TTS playback and streaming AI responses are deferred latency wins (out of scope for the non-streaming v1).
+- The frontend's only voice role: record raw mic audio (`MediaRecorder`) and play audio bytes returned from Go. All processing and API calls happen in Go.
+- TTS is non-streaming in v1: Go returns the full MP3 (base64) and the frontend plays the whole clip. Chunked streaming via Wails runtime events is a later follow-up.
+- For typed messages with voice mode off, skip ElevenLabs entirely — send text straight to OpenRouter and display the reply as text. Voice mode also speaks typed replies.

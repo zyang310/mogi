@@ -23,6 +23,8 @@ export function ListDisplays():Promise<Array<capture.DisplayInfo>>;
 
 export function ListSessions():Promise<Array<models.SessionSummary>>;
 
+export function ListVoices():Promise<Array<models.Voice>>;
+
 export function SendMessage(arg1:string):Promise<string>;
 
 export function SetAPIKey(arg1:string,arg2:string):Promise<void>;
@@ -38,5 +40,9 @@ export function StartCapture(arg1:number):Promise<void>;
 export function StartSession(arg1:string):Promise<models.Session>;
 
 export function StopCapture():Promise<void>;
+
+export function SynthesizeSpeech(arg1:string):Promise<string>;
+
+export function TranscribeAudio(arg1:string,arg2:string):Promise<string>;
 
 export function UpdatePreferences(arg1:models.Preferences):Promise<void>;

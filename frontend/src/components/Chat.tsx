@@ -12,9 +12,26 @@ interface Props {
   onSend: (text: string) => void;
   loading: boolean;
   disabled: boolean;
+  // Voice controls (optional — typed-only callers omit these; the buttons render
+  // only when their handlers are provided).
+  recording?: boolean;
+  transcribing?: boolean;
+  voiceMode?: boolean;
+  onMicToggle?: () => void;
+  onToggleVoice?: () => void;
 }
 
-export default function Chat({ messages, onSend, loading, disabled }: Props) {
+export default function Chat({
+  messages,
+  onSend,
+  loading,
+  disabled,
+  recording = false,
+  transcribing = false,
+  voiceMode = false,
+  onMicToggle,
+  onToggleVoice,
+}: Props) {
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -47,6 +64,16 @@ export default function Chat({ messages, onSend, loading, disabled }: Props) {
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
   }
 
+  const placeholder = disabled
+    ? "Start an interview session first..."
+    : recording
+      ? "Listening… click the mic again to send"
+      : transcribing
+        ? "Transcribing…"
+        : "Type your message... (Enter to send)";
+
+  const micIcon = transcribing ? "hourglass_top" : recording ? "stop" : "mic";
+
   return (
     <div className="chat">
       <div className="chat-messages">
@@ -69,17 +96,39 @@ export default function Chat({ messages, onSend, loading, disabled }: Props) {
       </div>
 
       <div className="chat-input-area">
+        {onToggleVoice && (
+          <button
+            className={`chat-icon-btn${voiceMode ? " is-active" : ""}`}
+            onClick={onToggleVoice}
+            disabled={disabled}
+            title={voiceMode ? "Voice mode on — replies are spoken" : "Voice mode off"}
+          >
+            <span className="material-symbols-outlined">
+              {voiceMode ? "volume_up" : "volume_off"}
+            </span>
+          </button>
+        )}
+        {onMicToggle && (
+          <button
+            className={`chat-icon-btn${recording ? " is-recording" : ""}`}
+            onClick={onMicToggle}
+            disabled={disabled || transcribing}
+            title={recording ? "Stop and send" : "Speak your message"}
+          >
+            <span
+              className={`material-symbols-outlined${transcribing ? " spin" : ""}`}
+            >
+              {micIcon}
+            </span>
+          </button>
+        )}
         <textarea
           ref={textareaRef}
           className="chat-input"
           value={draft}
           onChange={autoResize}
           onKeyDown={handleKeyDown}
-          placeholder={
-            disabled
-              ? "Start an interview session first..."
-              : "Type your message... (Enter to send)"
-          }
+          placeholder={placeholder}
           disabled={disabled || loading}
           rows={1}
         />

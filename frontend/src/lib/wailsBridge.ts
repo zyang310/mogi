@@ -12,6 +12,7 @@ export {
   ListAvailableModels,
   ListDisplays,
   ListSessions,
+  ListVoices,
   SendMessage,
   SetAPIKey,
   SetCaptureRegion,
@@ -20,6 +21,8 @@ export {
   StartCapture,
   StartSession,
   StopCapture,
+  SynthesizeSpeech,
+  TranscribeAudio,
   UpdatePreferences,
 } from "../../wailsjs/go/main/App";
 

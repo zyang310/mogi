@@ -1,0 +1,118 @@
+.voice-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Reuses .settings-input, but that class sets flex:1 for row layouts — reset it
+   here so the search box doesn't stretch vertically in this column. */
+.voice-picker-search {
+  flex: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.voice-picker-status {
+  font-size: 13px;
+  color: var(--outline);
+  margin: 4px 0;
+}
+
+.voice-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+  background-color: var(--surface-container-lowest);
+}
+
+/* Row holds the select area + the preview button side by side. Nested buttons
+   are invalid, so selection and preview are separate sibling buttons. */
+.voice-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+
+.voice-picker-row:hover {
+  background-color: var(--surface-container-high);
+}
+
+.voice-picker-row.is-active {
+  border-color: var(--primary);
+  background-color: var(--surface-container);
+}
+
+.voice-picker-select {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--on-surface);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.voice-picker-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Outlined pill — colored text + matching border, no fill (mirrors .model-badge). */
+.voice-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid currentColor;
+  color: var(--secondary);
+  flex-shrink: 0;
+  text-transform: capitalize;
+}
+
+.voice-picker-preview {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.voice-picker-preview:hover {
+  background-color: var(--surface-container-high);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.voice-picker-preview .material-symbols-outlined {
+  font-size: 20px;
+}

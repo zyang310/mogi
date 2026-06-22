@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Chat from "./components/Chat";
 import CapturePanel from "./components/CapturePanel";
 import HubReady from "./components/HubReady";
@@ -16,8 +16,12 @@ import {
   SendMessage,
   SetCaptureRegion,
   SetOverlayExpanded,
+  SynthesizeSpeech,
+  TranscribeAudio,
   models,
 } from "./lib/wailsBridge";
+import { useVoiceRecorder } from "./lib/useVoiceRecorder";
+import { useAudioPlayer } from "./lib/useAudioPlayer";
 import "./App.css";
 
 interface ChatMessage {
@@ -50,6 +54,26 @@ function App() {
   const [view, setView] = useState<"hub" | "history" | "settings">("hub");
   const [overlayMode, setOverlayMode] = useState(false);
   const [error, setError] = useState("");
+
+  // Voice: mic recorder + audio player, plus session-level "voice mode" (when on,
+  // interviewer replies are spoken). voiceModeRef mirrors the state so async
+  // handlers read the latest value without a stale closure.
+  const recorder = useVoiceRecorder();
+  const player = useAudioPlayer();
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const voiceModeRef = useRef(false);
+
+  function setVoice(on: boolean) {
+    voiceModeRef.current = on;
+    setVoiceMode(on);
+    if (!on) player.stop();
+  }
+
+  // Surface mic/permission errors from the recorder in the shared banner.
+  useEffect(() => {
+    if (recorder.error) setError(recorder.error);
+  }, [recorder.error]);
 
   async function loadPrefs() {
     try {
@@ -110,6 +134,8 @@ function App() {
   async function handleEnd() {
     if (!sessionId) return;
     setError("");
+    player.stop();
+    if (recorder.recording) void recorder.stop();
     try {
       await EndSession(sessionId);
     } catch (e: any) {
@@ -117,6 +143,54 @@ function App() {
     } finally {
       setSessionId(null);
       setSessionStartedAt(null);
+    }
+  }
+
+  // Speak an interviewer reply via ElevenLabs TTS — only when voice mode is on
+  // and a key is configured. Fire-and-forget from handleSend; errors surface in
+  // the banner but never drop the (already-shown) text reply.
+  async function speak(text: string) {
+    if (!voiceModeRef.current || !authStatus.elevenLabsConfigured) return;
+    try {
+      const audioB64 = await SynthesizeSpeech(text);
+      await player.play(audioB64, prefs?.voiceSpeed ?? 1);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    }
+  }
+
+  // Toggle the speaker (voice mode). Turning it on without a key is a no-op with
+  // a clear error; turning it off stops any in-flight playback (via setVoice).
+  function toggleVoice() {
+    if (!voiceMode && !authStatus.elevenLabsConfigured) {
+      setError("ElevenLabs API key not configured — add it in Settings.");
+      return;
+    }
+    setVoice(!voiceMode);
+  }
+
+  // Click-to-toggle push-to-talk: first click records, second stops →
+  // transcribes → feeds the text into the normal send loop. Speaking a question
+  // turns voice mode on so the reply is spoken back.
+  async function handleMicToggle() {
+    if (recorder.recording) {
+      const rec = await recorder.stop();
+      if (!rec) return;
+      setTranscribing(true);
+      try {
+        const text = (await TranscribeAudio(rec.base64, rec.mimeType)).trim();
+        if (text) {
+          setVoice(true);
+          await handleSend(text);
+        }
+      } catch (e: any) {
+        setError(e?.message || String(e));
+      } finally {
+        setTranscribing(false);
+      }
+    } else {
+      setError("");
+      await recorder.start();
     }
   }
 
@@ -157,6 +231,7 @@ function App() {
     try {
       const response = await SendMessage(text);
       setMessages((prev) => [...prev, { role: "assistant", content: response }]);
+      void speak(response);
     } catch (e: any) {
       setError(e?.message || String(e));
       // Remove the user message on failure so they can re-send.
@@ -201,6 +276,12 @@ function App() {
         onHistoryToggle={(open) => {
           SetOverlayExpanded(open).catch(() => {});
         }}
+        recording={recorder.recording}
+        transcribing={transcribing}
+        speaking={player.speaking}
+        voiceMode={voiceMode}
+        onMicToggle={handleMicToggle}
+        onToggleVoice={toggleVoice}
       />
     );
   }
@@ -325,6 +406,11 @@ function App() {
                   onSend={handleSend}
                   loading={loading}
                   disabled={!isActive || timedOut}
+                  recording={recorder.recording}
+                  transcribing={transcribing}
+                  voiceMode={voiceMode}
+                  onMicToggle={handleMicToggle}
+                  onToggleVoice={toggleVoice}
                 />
               </div>
             </main>

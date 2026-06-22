@@ -145,6 +145,20 @@
   text-decoration: underline;
 }
 
+/* Inline link-styled button for in-app navigation inside a hint (matches anchors). */
+.settings-link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.settings-link-btn:hover {
+  text-decoration: underline;
+}
+
 .settings-hint-muted {
   color: var(--outline);
   margin: 12px 0 0;
@@ -192,6 +206,57 @@
 /* Buttons reuse the shared .btn/.btn-primary classes from App.css. */
 .settings-field-save {
   white-space: nowrap;
+}
+
+/* ── Range slider (voice speed) ──────────────────────────────────────────── */
+.settings-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-slider {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--surface-container);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.settings-slider:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  border: 2px solid var(--surface-container-lowest);
+  cursor: pointer;
+}
+
+.settings-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  border: 2px solid var(--surface-container-lowest);
+  cursor: pointer;
+}
+
+.settings-slider-value {
+  min-width: 52px;
+  text-align: right;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface);
 }
 
 /* ── Status + feedback ───────────────────────────────────────────────────── */

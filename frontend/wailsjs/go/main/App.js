@@ -42,6 +42,10 @@ export function ListSessions() {
   return window['go']['main']['App']['ListSessions']();
 }
 
+export function ListVoices() {
+  return window['go']['main']['App']['ListVoices']();
+}
+
 export function SendMessage(arg1) {
   return window['go']['main']['App']['SendMessage'](arg1);
 }
@@ -72,6 +76,14 @@ export function StartSession(arg1) {
 
 export function StopCapture() {
   return window['go']['main']['App']['StopCapture']();
+}
+
+export function SynthesizeSpeech(arg1) {
+  return window['go']['main']['App']['SynthesizeSpeech'](arg1);
+}
+
+export function TranscribeAudio(arg1, arg2) {
+  return window['go']['main']['App']['TranscribeAudio'](arg1, arg2);
 }
 
 export function UpdatePreferences(arg1) {

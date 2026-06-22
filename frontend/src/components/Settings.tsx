@@ -7,6 +7,7 @@ import {
   models,
 } from "../lib/wailsBridge";
 import ModelPicker from "./ModelPicker";
+import VoicePicker from "./VoicePicker";
 import "./Settings.css";
 
 // Settings is a full page (not a modal). A left "Configuration" sidebar switches
@@ -51,6 +52,9 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
   const [intervalSec, setIntervalSec] = useState("3");
   const [limitMinutes, setLimitMinutes] = useState("30");
   const [warningMinutes, setWarningMinutes] = useState("25");
+  // Live slider value; persisted only on commit (pointer/key up) to avoid a DB
+  // write per step. Drives the readout and the VoicePicker preview speed.
+  const [voiceSpeed, setVoiceSpeed] = useState(1);
 
   // Load preferences on mount.
   useEffect(() => {
@@ -60,6 +64,7 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
         setIntervalSec(String(Math.max(1, Math.round(p.captureIntervalMs / 1000))));
         setLimitMinutes(String(p.sessionLimitMinutes ?? 30));
         setWarningMinutes(String(p.softWarningMinutes ?? 25));
+        setVoiceSpeed(p.voiceSpeed || 1);
       })
       .catch(() => {});
   }, []);
@@ -109,6 +114,15 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
 
   function saveModel(modelId: string) {
     return savePrefs({ model: modelId }, "Model saved.");
+  }
+
+  function saveVoice(voiceId: string) {
+    return savePrefs({ voiceId }, "Voice saved.");
+  }
+
+  // Persist the slider's current value once the user finishes dragging.
+  function saveVoiceSpeed() {
+    return savePrefs({ voiceSpeed }, "Voice speed saved.");
   }
 
   async function saveKey(provider: "openrouter" | "elevenlabs") {
@@ -305,16 +319,75 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
             <>
               <header className="settings-head">
                 <h1>Voice Calibration</h1>
-                <p>Spoken interviews powered by ElevenLabs.</p>
+                <p>Pick the voice your interviewer speaks with. Powered by ElevenLabs.</p>
               </header>
-              <div className="settings-card settings-card-placeholder">
-                <span className="material-symbols-outlined">record_voice_over</span>
-                <h3 className="settings-card-title">Coming in Phase 2</h3>
-                <p className="settings-hint">
-                  Voice input and a spoken interviewer aren't wired up yet. For now, type
-                  your responses in the chat during a session.
-                </p>
-              </div>
+              {authStatus.elevenLabsConfigured ? (
+                <div className="settings-card">
+                  <div className="settings-card-head">
+                    <span className="material-symbols-outlined">record_voice_over</span>
+                    <h3 className="settings-card-title">Interviewer Voice</h3>
+                  </div>
+                  <p className="settings-hint">
+                    Click a voice to select it, or the play button to hear a sample. During
+                    a session, toggle voice mode to speak with the interviewer aloud.
+                  </p>
+                  <VoicePicker
+                    currentVoiceId={prefs?.voiceId ?? ""}
+                    onSelect={saveVoice}
+                    speed={voiceSpeed}
+                  />
+                </div>
+              ) : (
+                <div className="settings-card settings-card-placeholder">
+                  <span className="material-symbols-outlined">record_voice_over</span>
+                  <h3 className="settings-card-title">Add an ElevenLabs key first</h3>
+                  <p className="settings-hint">
+                    Spoken interviews need an ElevenLabs API key. Add one under{" "}
+                    <button className="settings-link-btn" onClick={() => goTo("api-keys")}>
+                      API Keys
+                    </button>{" "}
+                    to choose a voice.
+                  </p>
+                </div>
+              )}
+              {authStatus.elevenLabsConfigured && (
+                <div className="settings-card">
+                  <div className="settings-card-head">
+                    <span className="material-symbols-outlined">speed</span>
+                    <h3 className="settings-card-title">Speaking speed</h3>
+                  </div>
+                  <p className="settings-hint">
+                    How fast the interviewer talks. Pitch stays natural at any speed — preview a
+                    voice above to hear the change.
+                  </p>
+                  <div className="settings-slider-row">
+                    <input
+                      type="range"
+                      className="settings-slider"
+                      min={0.5}
+                      max={2}
+                      step={0.05}
+                      value={voiceSpeed}
+                      onChange={(e) => setVoiceSpeed(Number(e.target.value))}
+                      onPointerUp={saveVoiceSpeed}
+                      onKeyUp={saveVoiceSpeed}
+                      disabled={saving || !prefs}
+                    />
+                    <span className="settings-slider-value">{voiceSpeed.toFixed(2)}×</span>
+                    <button
+                      type="button"
+                      className="settings-link-btn"
+                      onClick={() => {
+                        setVoiceSpeed(1);
+                        savePrefs({ voiceSpeed: 1 }, "Voice speed saved.");
+                      }}
+                      disabled={saving || !prefs || voiceSpeed === 1}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
