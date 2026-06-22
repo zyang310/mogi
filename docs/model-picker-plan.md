@@ -1,6 +1,6 @@
 # Model Picker — Implementation Plan (Phase 3)
 
-> **Status: planned — not yet implemented.** This is the execution spec for the Phase 3 model picker. Pick it up in a fresh session and work top to bottom.
+> **Status: implemented.** Shipped as specified — backend `ListModels` (cached) + `ListAvailableModels` binding, and a searchable `ModelPicker` in Settings (Vision-only default ON, Free-only OFF) that persists to `Preferences.Model`. This doc is retained as the design reference.
 
 ## Context
 

@@ -308,17 +308,31 @@ func (a *App) UpdatePreferences(prefs models.Preferences) error {
 }
 
 // ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+// ListAvailableModels returns the OpenRouter model catalog for the Settings
+// picker. Saving a choice needs no binding here — the picker writes the selected
+// id to Preferences.Model through UpdatePreferences.
+func (a *App) ListAvailableModels() ([]models.Model, error) {
+	if a.aiClient == nil {
+		return nil, fmt.Errorf("set an OpenRouter API key first")
+	}
+	return a.aiClient.ListModels(a.ctx)
+}
+
+// ---------------------------------------------------------------------------
 // Window / Overlay mode
 // ---------------------------------------------------------------------------
 
 // Overlay (compact, always-on-top) window dimensions, in logical pixels.
 const (
-	overlayWidth   = 780 // floating bar width
-	overlayBarH    = 76  // just the bar
-	overlayFullH   = 400 // bar + expanded history dropdown
-	restoreWidth   = 1024
-	restoreHeight  = 768
-	overlayTopGap  = 24 // distance from the top of the screen
+	overlayWidth  = 780 // floating bar width
+	overlayBarH   = 76  // just the bar
+	overlayFullH  = 400 // bar + expanded history dropdown
+	restoreWidth  = 1024
+	restoreHeight = 768
+	overlayTopGap = 24 // distance from the top of the screen
 )
 
 // EnterOverlayMode shrinks the window to the floating bar, pins it

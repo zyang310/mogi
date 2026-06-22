@@ -30,6 +30,10 @@ export function GetSessionTranscript(arg1) {
   return window['go']['main']['App']['GetSessionTranscript'](arg1);
 }
 
+export function ListAvailableModels() {
+  return window['go']['main']['App']['ListAvailableModels']();
+}
+
 export function ListDisplays() {
   return window['go']['main']['App']['ListDisplays']();
 }

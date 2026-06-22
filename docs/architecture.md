@@ -79,6 +79,9 @@ func (a *App) GetSessionTranscript(id string) ([]models.Message, error)
 func (a *App) GetPreferences() (models.Preferences, error)
 func (a *App) UpdatePreferences(prefs models.Preferences) error
 
+// Models
+func (a *App) ListAvailableModels() ([]models.Model, error)  // OpenRouter catalog for the picker (cached ~1h)
+
 // Voice — ElevenLabs (PLANNED, Phase 2; all processing in Go, frontend only records/plays audio)
 // func (a *App) TranscribeAudio(audioBase64 string) (string, error)  // Scribe v2
 // func (a *App) SynthesizeSpeech(text string) (string, error)        // Flash v2.5 (stream via Wails events)

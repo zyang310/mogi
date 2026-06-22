@@ -7,19 +7,29 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"ai-interviewer/internal/models"
 )
 
 const (
-	openRouterURL  = "https://openrouter.ai/api/v1/chat/completions"
-	MaxHistoryMsgs = 20 // keep last 20 messages (10 exchanges) to limit cost/latency
-	httpTimeout    = 60 * time.Second
+	openRouterURL       = "https://openrouter.ai/api/v1/chat/completions"
+	openRouterModelsURL = "https://openrouter.ai/api/v1/models"
+	MaxHistoryMsgs      = 20 // keep last 20 messages (10 exchanges) to limit cost/latency
+	httpTimeout         = 60 * time.Second
 	// maxResponseTokens caps the completion length. Interviewer replies are
 	// 1-3 sentences, so this is generous. It also matters for billing: without
 	// it, OpenRouter defaults to the model's full output limit (e.g. 64k) and
 	// pre-authorizes credits for that worst case, which 402s on low balances.
 	maxResponseTokens = 1024
+	// modelsCacheTTL bounds how long ListModels serves the cached catalog before
+	// re-fetching. The catalog (300+ models) changes rarely, so an hour avoids
+	// re-pulling it every time the user opens Settings.
+	modelsCacheTTL = time.Hour
 )
 
 // ChatMessage is a single message in the OpenRouter request format.
@@ -45,6 +55,12 @@ type ImageURL struct {
 type Client struct {
 	apiKey     string
 	httpClient *http.Client
+
+	// Cached model catalog. ListModels refreshes it lazily; mu guards both fields
+	// since Wails may invoke bound methods from different goroutines.
+	mu           sync.Mutex
+	cachedModels []models.Model
+	cachedAt     time.Time
 }
 
 // NewClient creates an AI client with the given OpenRouter API key.
@@ -123,6 +139,85 @@ func (c *Client) Complete(ctx context.Context, model string, messages []ChatMess
 	}
 
 	return result.Choices[0].Message.Content, nil
+}
+
+// ListModels returns the OpenRouter model catalog shaped for the picker UI.
+// Results are cached in-memory for modelsCacheTTL so opening Settings doesn't
+// re-pull the full (300+ entry) list each time. The mutex is held across the
+// fetch to serialize concurrent callers; a failed fetch leaves the cache intact
+// so the next call retries.
+func (c *Client) ListModels(ctx context.Context) ([]models.Model, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if len(c.cachedModels) > 0 && time.Since(c.cachedAt) < modelsCacheTTL {
+		return c.cachedModels, nil
+	}
+
+	// The /models endpoint is public, but we send the same auth/identity headers
+	// as Complete for consistency (and so per-account model availability applies).
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, openRouterModelsURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("ai: build models request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("HTTP-Referer", "https://github.com/zhihangyang/ai-interviewer")
+	req.Header.Set("X-Title", "AI Interviewer")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("ai: models http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("ai: read models response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ai: OpenRouter models returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// Mirror only the fields the picker needs. Prices arrive as per-token strings.
+	var result struct {
+		Data []struct {
+			ID            string `json:"id"`
+			Name          string `json:"name"`
+			Description   string `json:"description"`
+			ContextLength int    `json:"context_length"`
+			Architecture  struct {
+				InputModalities []string `json:"input_modalities"`
+			} `json:"architecture"`
+			Pricing struct {
+				Prompt     string `json:"prompt"`
+				Completion string `json:"completion"`
+			} `json:"pricing"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("ai: parse models response: %w", err)
+	}
+
+	out := make([]models.Model, 0, len(result.Data))
+	for _, m := range result.Data {
+		// Unparseable/absent prices fall back to 0; "0" exactly marks a free model.
+		prompt, _ := strconv.ParseFloat(m.Pricing.Prompt, 64)
+		completion, _ := strconv.ParseFloat(m.Pricing.Completion, 64)
+		out = append(out, models.Model{
+			ID:              m.ID,
+			Name:            m.Name,
+			Description:     m.Description,
+			ContextLength:   m.ContextLength,
+			SupportsVision:  slices.Contains(m.Architecture.InputModalities, "image"),
+			IsFree:          m.Pricing.Prompt == "0" && m.Pricing.Completion == "0",
+			PromptPrice:     prompt * 1e6,     // USD per 1M input tokens
+			CompletionPrice: completion * 1e6, // USD per 1M output tokens
+		})
+	}
+
+	c.cachedModels = out
+	c.cachedAt = time.Now()
+	return out, nil
 }
 
 // stripPastImages returns a new message slice where every user message except the

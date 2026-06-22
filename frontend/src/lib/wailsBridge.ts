@@ -9,6 +9,7 @@ export {
   GetLatestScreenshot,
   GetPreferences,
   GetSessionTranscript,
+  ListAvailableModels,
   ListDisplays,
   ListSessions,
   SendMessage,

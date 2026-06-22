@@ -60,4 +60,4 @@ A desktop app that runs a **live AI mock coding interview**. The user codes in t
 
 - [docs/roadmap.md](docs/roadmap.md) — phases & current status
 - [docs/architecture.md](docs/architecture.md) — data flow, full bindings, prompt spec, OpenRouter/ElevenLabs API contracts
-- [docs/model-picker-plan.md](docs/model-picker-plan.md) — next feature (Phase 3 model picker)
+- [docs/model-picker-plan.md](docs/model-picker-plan.md) — model picker design reference (Phase 3, implemented)

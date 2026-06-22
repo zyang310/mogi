@@ -36,7 +36,7 @@
 
 - [x] Settings panel (capture interval, session time limit, key management)
 - [x] Display / capture-region selection
-- [ ] Model picker (fetch available models from OpenRouter) — see [model-picker-plan.md](model-picker-plan.md)
+- [x] Model picker — searchable list in Settings (vision-first, free models flagged, per-1M pricing) that persists to `Preferences.Model`; see [model-picker-plan.md](model-picker-plan.md)
 - [ ] Session history view (bindings `ListSessions` / `GetSessionTranscript` exist; the History tab is a placeholder)
 - [ ] Keyboard shortcuts (push-to-talk, end session, toggle capture)
 - ~~Problem bank with JSON seed + problem selector~~ — **dropped (screen-driven design)**

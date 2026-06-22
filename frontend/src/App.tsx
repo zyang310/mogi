@@ -46,9 +46,8 @@ function App() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [regionOpen, setRegionOpen] = useState(false);
-  const [view, setView] = useState<"hub" | "history">("hub");
+  const [view, setView] = useState<"hub" | "history" | "settings">("hub");
   const [overlayMode, setOverlayMode] = useState(false);
   const [error, setError] = useState("");
 
@@ -89,10 +88,10 @@ function App() {
     return () => clearInterval(id);
   }, [sessionStartedAt]);
 
-  // Auto-open settings if no API key is configured.
+  // Route to the settings page if no API key is configured.
   useEffect(() => {
     if (!authStatus.openRouterConfigured) {
-      setSettingsOpen(true);
+      setView("settings");
     }
   }, [authStatus.openRouterConfigured]);
 
@@ -224,7 +223,10 @@ function App() {
           <span className="material-symbols-outlined">history</span>
           <span className="pill-tab-label">History</span>
         </button>
-        <button className="pill-tab" onClick={() => setSettingsOpen(true)}>
+        <button
+          className={`pill-tab${view === "settings" ? " active" : ""}`}
+          onClick={() => setView("settings")}
+        >
           <span className="material-symbols-outlined">settings</span>
           <span className="pill-tab-label">Settings</span>
         </button>
@@ -255,7 +257,13 @@ function App() {
           </div>
         )}
 
-        {view === "history" ? (
+        {view === "settings" ? (
+          <Settings
+            authStatus={authStatus}
+            onAuthChange={setAuthStatus}
+            onPrefsChange={setPrefs}
+          />
+        ) : view === "history" ? (
           <div className="history-placeholder">
             <span className="material-symbols-outlined">history</span>
             <p className="history-placeholder-title">Session history</p>
@@ -333,17 +341,6 @@ function App() {
         />
       )}
 
-      {/* Settings modal */}
-      {settingsOpen && (
-        <Settings
-          authStatus={authStatus}
-          onUpdate={setAuthStatus}
-          onClose={() => {
-            setSettingsOpen(false);
-            loadPrefs();
-          }}
-        />
-      )}
     </div>
   );
 }

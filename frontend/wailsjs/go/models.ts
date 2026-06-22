@@ -82,6 +82,32 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class Model {
+	    id: string;
+	    name: string;
+	    description: string;
+	    contextLength: number;
+	    supportsVision: boolean;
+	    isFree: boolean;
+	    promptPrice: number;
+	    completionPrice: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Model(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.contextLength = source["contextLength"];
+	        this.supportsVision = source["supportsVision"];
+	        this.isFree = source["isFree"];
+	        this.promptPrice = source["promptPrice"];
+	        this.completionPrice = source["completionPrice"];
+	    }
+	}
 	export class Preferences {
 	    captureIntervalMs: number;
 	    model: string;

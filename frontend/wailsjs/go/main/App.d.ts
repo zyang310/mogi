@@ -17,6 +17,8 @@ export function GetPreferences():Promise<models.Preferences>;
 
 export function GetSessionTranscript(arg1:string):Promise<Array<models.Message>>;
 
+export function ListAvailableModels():Promise<Array<models.Model>>;
+
 export function ListDisplays():Promise<Array<capture.DisplayInfo>>;
 
 export function ListSessions():Promise<Array<models.SessionSummary>>;
