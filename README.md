@@ -14,6 +14,65 @@ Grab the latest build from the [**Releases**](https://github.com/zyang310/ai-int
 
 Once installed, the app **checks for updates on launch** and shows a banner when a newer version is out; click **Download** and repeat the drag-to-Applications step. For how releases and updates actually work, see [docs/ci-cd-and-auto-update.md](docs/ci-cd-and-auto-update.md).
 
+## API keys
+
+Keys are entered in the app's first-run **Setup** screen (or later under **Settings → API Keys**). There's no `.env` file — keys are stored locally in SQLite and only leave your machine as the auth header on requests to that provider.
+
+| Key | Required? | Powers |
+|---|---|---|
+| **OpenRouter** | **Yes** | The AI interviewer that reads your screen and replies |
+| **Google Cloud** | Optional | Low-cost voice (spoken replies + mic transcription) |
+| **ElevenLabs** | Optional | Premium voice (higher-quality speech + transcription) |
+
+You only need **OpenRouter** to use the app. Add a voice key (**Google _or_ ElevenLabs**) only if you want to talk with the interviewer out loud — with both, the app automatically uses the best combo (ElevenLabs transcription + Google speech).
+
+### OpenRouter (required)
+
+One gateway to many models (Claude, GPT, Gemini, …); the app uses it for the vision model that reads your screen.
+
+1. Sign in at **https://openrouter.ai** (Google/GitHub login works).
+2. Add a few dollars of credit under **Settings → Credits** — interviewer replies are short, so it lasts a long time.
+3. Go to **https://openrouter.ai/keys** → **Create Key** → name it (e.g. "AI Interviewer") → **Create**.
+4. Copy the key (starts with `sk-or-...`) and paste it into the app.
+
+> The key is shown only once. Lose it? Just create another.
+
+### Google Cloud (optional — low-cost voice)
+
+This is the fiddly one, so here's the full walkthrough. It's ~10× cheaper than ElevenLabs with a free monthly tier. Three parts: **make a project → enable two APIs → create a key.**
+
+**1 · Create a project**
+
+- Open **https://console.cloud.google.com** and accept the terms if it's your first time.
+- Top bar → **project dropdown → New Project** → name it (e.g. "ai-interviewer") → **Create**. After a few seconds, select that project in the dropdown.
+- **Billing:** Google requires a billing account (a card) even for the free tier under **Billing**. You won't be charged within the free monthly limits, but it must be set up. Prefer not to add a card? Use ElevenLabs instead.
+
+**2 · Enable the two voice APIs** _(this is the step people miss)_
+
+- **Text-to-Speech** (lets the interviewer speak): open **https://console.cloud.google.com/apis/library/texttospeech.googleapis.com** → **Enable**.
+- **Speech-to-Text** (lets you reply with the mic): open **https://console.cloud.google.com/apis/library/speech.googleapis.com** → **Enable**.
+- Both should read "API Enabled" for your project. _(If you'll only listen and type your answers, Text-to-Speech alone is enough — but then skip enabling Speech-to-Text and just don't use the mic.)_
+
+**3 · Create the API key**
+
+- Go to **https://console.cloud.google.com/apis/credentials**.
+- **+ Create Credentials → API key** → copy the key (starts with `AIza...`) → paste it into the app.
+- _(Recommended)_ Click **Edit API key → Restrict key → API restrictions** and limit it to **Cloud Text-to-Speech API** and **Cloud Speech-to-Text API**, so a leaked key can't reach anything else.
+
+> **"API key not valid" or a 403?** Almost always means the API isn't enabled on the **selected** project, or the key is restricted to the wrong APIs. Re-check step 2, confirm the key belongs to the **same project** where you enabled the APIs, and re-check the restriction in step 3.
+
+### ElevenLabs (optional — premium voice)
+
+Higher-quality voices and transcription (Scribe). Pricier than Google, but has a free tier to try.
+
+1. Sign up at **https://elevenlabs.io**.
+2. Open **https://elevenlabs.io/app/settings/api-keys** (or **Profile → API Keys**).
+3. **Create API Key** → name it → copy it → paste into the app.
+
+> The free tier is enough to test spoken interviews; heavier use needs a paid plan.
+
+---
+
 The sections below are for **building from source** instead.
 
 ## Prerequisites
@@ -102,8 +161,4 @@ Both should exit cleanly with no errors.
 
 ## Configuration
 
-API keys are entered through the Settings panel inside the app (no `.env` file needed). All keys are stored locally in SQLite and never leave the machine.
-
-Required for full functionality:
-- **OpenRouter API key** — get one at https://openrouter.ai (used for AI responses)
-- **ElevenLabs API key** — get one at https://elevenlabs.io (used for voice, Phase 2+)
+API keys are entered in the app's **Settings → API Keys** panel (or the first-run setup screen) — no `.env` file. See [**API keys**](#api-keys) above for step-by-step instructions on getting each one. All keys are stored locally in SQLite and never leave your machine except as the auth header on requests to that provider.
