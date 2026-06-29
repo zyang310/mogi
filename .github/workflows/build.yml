@@ -43,7 +43,18 @@ jobs:
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      # ── Backend checks ───────────────────────────────────────────────────
+      # ── Frontend first ───────────────────────────────────────────────────
+      # main.go embeds the built UI with `//go:embed all:frontend/dist`, so that
+      # directory must exist before ANY `go build`/`go test` of package main.
+      # frontend/dist is gitignored (a build output), so we build it here. This
+      # step also type-checks the frontend (npm run build runs `tsc && vite build`).
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      # ── Backend checks (frontend/dist now exists for the embed) ──────────
       - name: Go build
         run: go build ./...
 
@@ -59,21 +70,12 @@ jobs:
             exit 1
           fi
 
-      # ── Frontend checks ──────────────────────────────────────────────────
-      - name: Install frontend deps
-        working-directory: frontend
-        run: npm ci
-
-      - name: Frontend type-check
-        working-directory: frontend
-        run: npx tsc --noEmit
-
-      # ── Full app build ───────────────────────────────────────────────────
-      # wails build also runs the frontend build (wails.json frontend:build).
+      # ── Package the app ──────────────────────────────────────────────────
+      # -s skips re-building the frontend (we already built frontend/dist above).
       # The version is a throwaway "dev-<sha>" so these builds never look like a
       # release to the in-app updater (it ignores non-semver versions).
       - name: Wails build (darwin/universal)
-        run: wails build -platform darwin/universal -ldflags "-X main.version=dev-${{ github.sha }}"
+        run: wails build -platform darwin/universal -s -ldflags "-X main.version=dev-${{ github.sha }}"
 
       - name: Package .app
         run: |

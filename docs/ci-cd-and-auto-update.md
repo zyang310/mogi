@@ -116,11 +116,11 @@ Developer account ever enters the picture.
                    ▼                                         ▼
         .github/workflows/build.yml             .github/workflows/release.yml
         runner: macos-latest                    runner: macos-latest
-        ├─ go build ./...                        ├─ stamp wails.json productVersion
-        ├─ go test ./...                         ├─ wails build darwin/universal
-        ├─ gofmt -l .                            │     -ldflags main.version=vX.Y.Z
-        ├─ npm ci && tsc --noEmit                ├─ ditto  → AI-Interviewer-vX.Y.Z.zip
-        ├─ wails build darwin/universal          └─ softprops/action-gh-release
+        ├─ npm ci && npm run build → dist        ├─ stamp wails.json productVersion
+        ├─ go build ./...                        ├─ wails build darwin/universal
+        ├─ go test ./...                         │     -ldflags main.version=vX.Y.Z
+        ├─ gofmt -l .                            ├─ ditto  → AI-Interviewer-vX.Y.Z.zip
+        ├─ wails build darwin/universal -s       └─ softprops/action-gh-release
         │     -ldflags main.version=dev-<sha>            │
         └─ upload-artifact (repo-only, expires)          ▼
                    │                              ┌─────────────────────────────┐
@@ -134,6 +134,14 @@ Both workflows do the same macOS build; they differ in **trigger**, **version**,
 **where the output goes**. `main` pushes produce a throwaway `dev-<sha>` build as a
 repo-only artifact (continuous proof it compiles). Tag pushes produce a real `vX.Y.Z`
 build published as a public Release.
+
+> **Why the frontend builds first.** `main.go` embeds the compiled UI with
+> `//go:embed all:frontend/dist`, so that directory must exist before *any*
+> `go build`/`go test` of the `main` package — otherwise the compile fails with
+> `pattern all:frontend/dist: no matching files found`. `frontend/dist` is a gitignored
+> build output, so CI builds the frontend up front; `wails build -s` then packages
+> without rebuilding it. (`release.yml` sidesteps this by running only `wails build`,
+> which builds the frontend before the Go compile anyway.)
 
 ### The version flow
 
