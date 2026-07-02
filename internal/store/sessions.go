@@ -48,11 +48,12 @@ func (db *DB) EndSession(id string) error {
 }
 
 // ListSessions returns a summary of all sessions, newest first. EndedAt,
-// ProblemTitle, and Difficulty may be unset for in-progress or unlabeled sessions.
+// ProblemTitle, and Difficulty may be unset for in-progress or unlabeled sessions;
+// Company and Mode are set only for Company Practice sessions.
 func (db *DB) ListSessions() ([]models.SessionSummary, error) {
 	rows, err := db.conn.Query(`
 		SELECT s.id, s.model, s.started_at, s.ended_at, s.problem_title, s.difficulty,
-		       COUNT(m.id) AS msg_count
+		       s.company, s.mode, COUNT(m.id) AS msg_count
 		FROM sessions s
 		LEFT JOIN messages m ON m.session_id = s.id
 		GROUP BY s.id
@@ -67,8 +68,8 @@ func (db *DB) ListSessions() ([]models.SessionSummary, error) {
 	for rows.Next() {
 		var s models.SessionSummary
 		var startedAt string
-		var endedAt, problemTitle, difficulty sql.NullString
-		if err := rows.Scan(&s.ID, &s.Model, &startedAt, &endedAt, &problemTitle, &difficulty, &s.MessageCount); err != nil {
+		var endedAt, problemTitle, difficulty, company, mode sql.NullString
+		if err := rows.Scan(&s.ID, &s.Model, &startedAt, &endedAt, &problemTitle, &difficulty, &company, &mode, &s.MessageCount); err != nil {
 			return nil, fmt.Errorf("store: scan session row: %w", err)
 		}
 		s.StartedAt = parseDBTime(startedAt)
@@ -79,9 +80,25 @@ func (db *DB) ListSessions() ([]models.SessionSummary, error) {
 		}
 		s.ProblemTitle = problemTitle.String
 		s.Difficulty = difficulty.String
+		s.Company = company.String
+		s.Mode = mode.String
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// SetSessionCompany tags a session with the company (display name) and mode
+// ("single" or "mock") it belongs to, so the history list can badge Company
+// Practice sessions. Called once at session start.
+func (db *DB) SetSessionCompany(id, company, mode string) error {
+	_, err := db.conn.Exec(
+		`UPDATE sessions SET company = ?, mode = ? WHERE id = ?`,
+		company, mode, id,
+	)
+	if err != nil {
+		return fmt.Errorf("store: set session company: %w", err)
+	}
+	return nil
 }
 
 // UpdateSessionMeta sets the AI-derived problem title, difficulty, and final code

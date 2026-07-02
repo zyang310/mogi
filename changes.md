@@ -1,1 +1,1 @@
-1. move all testing in internal/ai to a seperate folder
+1. improve pagination, (move to start button) 

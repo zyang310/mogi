@@ -1,13 +1,17 @@
 package ai
 
-// BuildSystemPrompt returns the interviewer system prompt for a screen-driven
-// session. There is no written problem statement — the interviewer reads the
-// problem and the candidate's code directly from a screenshot of their screen
-// (their IDE, a LeetCode/NeetCode page, a terminal, etc.) attached to the most
-// recent message. The prompt makes the model run a realistic interview, enforces
-// Socratic questioning (never giving away the answer), and — because replies are
-// read aloud by TTS — instructs a plain, spoken style with no markdown.
-func BuildSystemPrompt() string {
+import (
+	"fmt"
+	"strings"
+
+	"ai-interviewer/internal/models"
+)
+
+// basePrompt is the shared interviewer persona: how to run a realistic screen,
+// the hard rules, and the spoken (TTS) style. Both the default screen-driven
+// prompt and the Company Practice prompt build on it, so the interview rules live
+// in exactly one place.
+func basePrompt() string {
 	return `You are a senior software engineer running a live, real-world technical coding interview. Conduct it like an actual onsite or phone screen: rigorous, fair, and realistic, so the candidate finishes genuinely better prepared for the real thing.
 
 			You do NOT have a written problem statement. A screenshot of the candidate's current screen is attached to their most recent message only — it may show their IDE, a LeetCode/NeetCode problem page, a terminal, or a browser. Earlier messages carry no screenshot; this is intentional. Read the problem and the candidate's current code from the screenshot on their latest message.
@@ -47,6 +51,100 @@ func BuildSystemPrompt() string {
 
 			BAD: "That is an interesting thought, but actually searching a hash map takes order 1 time, not order n. Because of this, do you want to rethink your approach?"
 			GOOD: "Actually, hash map lookups are order 1, not order n. How does that change your overall time complexity?"`
+}
+
+// BuildSystemPrompt returns the interviewer system prompt for a screen-driven
+// session (the default Hub flow): the shared base, unchanged. There is no written
+// problem statement — the interviewer reads the problem and the candidate's code
+// from a screenshot attached to the most recent message.
+func BuildSystemPrompt() string {
+	return basePrompt()
+}
+
+// genericProfile is the fallback interviewer style for any company without an
+// authored entry in companyProfiles. Keeping it authored (not model recall) is
+// what makes the persona reliable.
+const genericProfile = "Run a standard, well-calibrated technical screen for this company: rigorous but fair, aiming for a correct and optimal solution with sound complexity analysis and clean code, calibrated to the problem's difficulty."
+
+// companyProfiles maps a company slug to short, authored guidance on how that
+// company's interviews actually feel — the persona flavour layered on top of the
+// base rules. Curated for the big, frequently-targeted names; every other company
+// uses genericProfile. Question selection is NOT a profile concern — mock mode
+// owns that.
+var companyProfiles = map[string]string{
+	"google":    "Google interviews emphasise algorithmic depth and rigorous complexity analysis. Push for the optimal approach, insist on tight and correct time and space complexity, and value clean, well-structured code. Expect the candidate to justify data-structure choices from first principles.",
+	"amazon":    "Amazon interviews pair data-structures-and-algorithms with the Leadership Principles. Probe the technical solution rigorously, and where it fits naturally, ask a brief behavioural follow-up (ownership, bias for action, dealing with ambiguity) tied to how they approached the problem.",
+	"meta":      "Meta interviews move fast — expect two problems' worth of pace. Keep momentum high, reward a quick correct approach, and push for clean, efficient code without letting the candidate stall.",
+	"apple":     "Apple interviews value precision and attention to detail. Probe edge cases thoroughly, expect careful and correct code, and have the candidate reason about how their solution behaves in practice.",
+	"microsoft": "Microsoft interviews are practical and collaborative. Care about clear problem decomposition, correct edge-case handling, and readable code; a conversational, think-out-loud style is welcome.",
+	"netflix":   "Netflix interviews expect senior-level judgement. Value strong fundamentals, crisp complexity reasoning, and the ability to weigh trade-offs and justify decisions concisely.",
+	"uber":      "Uber interviews favour practical problem-solving on solid data-structure fundamentals. Push for a working optimal solution with clear complexity analysis, and probe how it scales.",
+	"airbnb":    "Airbnb interviews value clean, well-structured code and clear communication. Expect thoughtful data-model choices and a candidate who reasons openly about trade-offs.",
+	"bloomberg": "Bloomberg interviews emphasise strong core data-structures-and-algorithms and careful edge-case handling. Expect precise complexity analysis and correct, robust code.",
+	"linkedin":  "LinkedIn interviews focus on solid algorithmic problem-solving and clean, maintainable code. Expect clear complexity reasoning and practical edge-case handling.",
+	"stripe":    "Stripe interviews lean practical and correctness-focused, often with a real-world flavour. Value robust, well-tested code and careful edge cases over exotic tricks.",
+	"nvidia":    "NVIDIA interviews emphasise strong fundamentals and efficiency. Push for optimal time and space complexity and precise reasoning about performance.",
+	"bytedance": "ByteDance interviews move fast and lean heavily on algorithms. Expect a brisk pace, optimal solutions, and sharp complexity analysis.",
+	"tiktok":    "TikTok (ByteDance) interviews move fast and lean heavily on algorithms. Expect a brisk pace, optimal solutions, and sharp complexity analysis.",
+}
+
+// CompanyProfile returns the authored interviewer style for a company slug, or
+// the generic fallback when none is curated.
+func CompanyProfile(slug string) string {
+	if p, ok := companyProfiles[slug]; ok {
+		return p
+	}
+	return genericProfile
+}
+
+// BuildCompanySystemPrompt returns the interviewer system prompt for a Company
+// Practice session: the shared base plus a company header that (a) sets the
+// company persona from an authored style profile and (b) encodes that the
+// interviewer has ALREADY greeted the candidate and assigned the problem(s). That
+// framing lets the deterministic opener be shown and spoken without inserting a
+// leading assistant turn into model history (which some models reject) — history
+// stays system → user → …. One problem is a single-question session; two problems
+// is a mock interview (easier Q1, harder Q2) with the Q1→Q2 handoff rules.
+//
+// The screen-driven invariant holds: the prompt names the problem's title only,
+// never its statement — the model still reads the real problem off the screenshot.
+func BuildCompanySystemPrompt(company, profile string, problems []models.Problem) string {
+	var b strings.Builder
+	b.WriteString(basePrompt())
+	fmt.Fprintf(&b, "\n\n## This interview\nYou are conducting this session as an interviewer at %s. %s\n\n", company, profile)
+	b.WriteString("You know only the title and difficulty of each assigned problem — NOT its written statement. As always, read the actual problem text and the candidate's code from the screenshot; never recite, assume, or infer problem details from memory.\n\n")
+
+	if len(problems) >= 2 {
+		q1, q2 := problems[0], problems[1]
+		fmt.Fprintf(&b, `This is a two-problem mock interview. You have ALREADY greeted the candidate aloud and told them the first problem is "%s" (%s). Do not greet them again or restate the assignment — continue naturally from there, reacting to what they say and what is on their screen.
+
+Pace it like a real 45-minute screen:
+- Work through the FIRST problem, "%s", now. If it isn't open on their screen yet, ask them to pull it up on LeetCode.
+- A SECOND problem, "%s" (%s), comes later. NEVER name it, hint at it, or reveal it before you transition — the candidate does not know what it is.
+- Transition to the second problem once the first is essentially solved and its complexity discussed, OR the candidate is clearly out of road, OR they ask to move on. When you do, tell them the next problem is "%s" and to open it on LeetCode.
+- Keep the pace tight enough that both problems fit the session; don't let the first one sprawl.`,
+			q1.Title, q1.Difficulty, q1.Title, q2.Title, q2.Difficulty, q2.Title)
+	} else if len(problems) == 1 {
+		p := problems[0]
+		fmt.Fprintf(&b, `You have ALREADY greeted the candidate aloud and assigned "%s" (%s). Do not greet them again or restate the assignment — continue naturally from there, reacting to what they say and what is on their screen. If the problem isn't open on their screen yet, ask them to pull it up on LeetCode.`,
+			p.Title, p.Difficulty)
+	}
+	return b.String()
+}
+
+// CompanyOpening is the deterministic greeting for a single-problem company
+// session — shown in the transcript and spoken (TTS) if voice is on. It is
+// template-derived (no AI call) and TTS-safe: plain sentences with no URLs or
+// stray symbols (the session banner carries the LeetCode link).
+func CompanyOpening(company string, problem models.Problem) string {
+	return fmt.Sprintf("Hi, I'm your interviewer at %s today. We'll be working on %s — it's rated %s. Open it on LeetCode and walk me through your first thoughts when you're ready.", company, problem.Title, problem.Difficulty)
+}
+
+// MockOpening is the deterministic greeting for a two-problem mock interview. It
+// names ONLY the first problem — the second stays hidden until the interviewer
+// transitions to it, mirroring a real screen where you learn Q2 when you get there.
+func MockOpening(company string, first models.Problem) string {
+	return fmt.Sprintf("Hi, I'm your interviewer at %s today. We have two problems to get through, so let's pace ourselves. First up is %s. Open it on LeetCode and talk me through your approach when you're ready.", company, first.Title)
 }
 
 // SessionMetaPrompt instructs the model to label a finished interview AND

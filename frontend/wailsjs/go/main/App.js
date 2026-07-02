@@ -58,6 +58,14 @@ export function ListAvailableModels() {
   return window['go']['main']['App']['ListAvailableModels']();
 }
 
+export function ListCompanies() {
+  return window['go']['main']['App']['ListCompanies']();
+}
+
+export function ListCompanyProblems(arg1) {
+  return window['go']['main']['App']['ListCompanyProblems'](arg1);
+}
+
 export function ListDisplays() {
   return window['go']['main']['App']['ListDisplays']();
 }
@@ -80,6 +88,10 @@ export function OpenInputMonitoringSettings() {
 
 export function OpenReleasePage(arg1) {
   return window['go']['main']['App']['OpenReleasePage'](arg1);
+}
+
+export function OpenURL(arg1) {
+  return window['go']['main']['App']['OpenURL'](arg1);
 }
 
 export function PreviewVoice(arg1) {
@@ -112,6 +124,14 @@ export function SnapshotDisplay(arg1) {
 
 export function StartCapture(arg1) {
   return window['go']['main']['App']['StartCapture'](arg1);
+}
+
+export function StartCompanySession(arg1, arg2) {
+  return window['go']['main']['App']['StartCompanySession'](arg1, arg2);
+}
+
+export function StartMockInterview(arg1) {
+  return window['go']['main']['App']['StartMockInterview'](arg1);
 }
 
 export function StartSession(arg1) {

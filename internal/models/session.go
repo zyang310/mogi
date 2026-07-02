@@ -28,7 +28,9 @@ type Message struct {
 // SessionSummary is a lightweight view used in the session history list.
 // EndedAt is nil for sessions that never ended; the client computes duration
 // from StartedAt/EndedAt. ProblemTitle and Difficulty are AI-derived and may be
-// empty (the client falls back to a generic label).
+// empty (the client falls back to a generic label). Company and Mode are set only
+// for Company Practice sessions (Mode is "single" or "mock") so history can badge
+// them; both are empty for default screen-driven sessions.
 type SessionSummary struct {
 	ID           string     `json:"id"`
 	ProblemTitle string     `json:"problemTitle"`
@@ -37,6 +39,8 @@ type SessionSummary struct {
 	StartedAt    time.Time  `json:"startedAt"`
 	EndedAt      *time.Time `json:"endedAt,omitempty"`
 	MessageCount int        `json:"messageCount"`
+	Company      string     `json:"company"`
+	Mode         string     `json:"mode"`
 }
 
 // DebriefRubric scores the candidate on five interview dimensions, 1-5. A 0 means
@@ -96,4 +100,9 @@ type Preferences struct {
 	// while the IDE (not this window) is focused, via an OS-level keyboard hook.
 	PushToTalkEnabled bool   `json:"pushToTalkEnabled"` // default true
 	PushToTalkKey     string `json:"pushToTalkKey"`     // canonical hotkey, e.g. "Ctrl+Space"
+
+	// Company Practice: the last company slug the user opened and the last
+	// difficulty filter they chose, so the tab resumes where they left off.
+	LastCompany    string `json:"lastCompany"`    // company slug, e.g. "google"
+	LastDifficulty string `json:"lastDifficulty"` // "All" | "Easy" | "Medium" | "Hard"
 }

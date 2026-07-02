@@ -50,6 +50,13 @@ export default function SessionHistoryCard({
             {summary.difficulty && (
               <span className="history-badge">{summary.difficulty}</span>
             )}
+            {summary.company && (
+              <span className="history-company">
+                <span className="material-symbols-outlined">domain</span>
+                {summary.company}
+                {summary.mode === "mock" && " · Mock"}
+              </span>
+            )}
           </div>
           <div className="history-card-meta">
             <span className="history-meta-item">

@@ -15,6 +15,7 @@ import (
 	"ai-interviewer/internal/googletts"
 	"ai-interviewer/internal/hotkey"
 	"ai-interviewer/internal/models"
+	"ai-interviewer/internal/problems"
 	"ai-interviewer/internal/store"
 	"ai-interviewer/internal/updater"
 	"ai-interviewer/internal/voice"
@@ -279,10 +280,25 @@ func (a *App) extractSessionMeta(sessionID, model, screenshot string) {
 		log.Printf("history: extract session meta: %v", err)
 		return
 	}
-	if meta.Title == "" && meta.Difficulty == "" && meta.Code == "" {
+
+	// Company sessions seed the title/difficulty at start from the known problem,
+	// so keep any non-empty existing values and let the AI only fill what's
+	// missing. The final-code snapshot is always taken from this end-of-session
+	// call. Default (screen-driven) sessions have no seeded values, so this leaves
+	// their behaviour unchanged.
+	title, difficulty := meta.Title, meta.Difficulty
+	if existing, err := a.db.GetSession(sessionID); err == nil {
+		if existing.ProblemTitle != "" {
+			title = existing.ProblemTitle
+		}
+		if existing.Difficulty != "" {
+			difficulty = existing.Difficulty
+		}
+	}
+	if title == "" && difficulty == "" && meta.Code == "" {
 		return // nothing useful to store
 	}
-	if err := a.db.UpdateSessionMeta(sessionID, meta.Title, meta.Difficulty, meta.Code); err != nil {
+	if err := a.db.UpdateSessionMeta(sessionID, title, difficulty, meta.Code); err != nil {
 		log.Printf("history: persist session meta: %v", err)
 	}
 }
@@ -365,6 +381,133 @@ func (a *App) SendMessage(text string) (string, error) {
 	}
 
 	return response, nil
+}
+
+// ---------------------------------------------------------------------------
+// Company Practice
+// ---------------------------------------------------------------------------
+
+// ListCompanies returns every company's pool summary for the picker list.
+func (a *App) ListCompanies() []models.CompanyInfo {
+	return problems.Companies()
+}
+
+// ListCompanyProblems returns a company's full problem list for browse-and-pick.
+// Filtering and sorting happen client-side over this list.
+func (a *App) ListCompanyProblems(slug string) ([]models.Problem, error) {
+	return problems.Problems(slug)
+}
+
+// StartCompanySession starts a single-problem Company Practice interview. The
+// problem is assigned by reference only (title + difficulty + link) — never its
+// statement, preserving the screen-driven invariant. The interviewer greets the
+// candidate in character (returned as Opening) and the normal capture + Socratic
+// loop takes over, flavoured by the company's style profile.
+func (a *App) StartCompanySession(slug string, problem models.Problem) (models.CompanySessionStart, error) {
+	return a.startCompanyInterview(slug, []models.Problem{problem})
+}
+
+// StartMockInterview starts a two-problem mock interview for a company. The pair
+// is drawn server-side (easier Q1, harder Q2) so no picker UI ever sees the
+// questions before the session begins — the surprise is the practice.
+func (a *App) StartMockInterview(slug string) (models.CompanySessionStart, error) {
+	pair, err := problems.MockPair(slug)
+	if err != nil {
+		return models.CompanySessionStart{}, err
+	}
+	return a.startCompanyInterview(slug, pair[:])
+}
+
+// startCompanyInterview is the shared body behind StartCompanySession and
+// StartMockInterview. It mirrors StartSession (guard, create the row, start
+// capture) but: seeds the company system prompt; persists the deterministic
+// opener to the transcript (so history + debrief include it) WITHOUT adding it to
+// model history — the system prompt carries the assignment and history must stay
+// system → user → … for models that reject a leading assistant turn; and seeds
+// the session's title/difficulty from the known problem(s).
+func (a *App) startCompanyInterview(slug string, probs []models.Problem) (models.CompanySessionStart, error) {
+	if a.active != nil {
+		return models.CompanySessionStart{}, fmt.Errorf("a session is already active — end it first")
+	}
+	if len(probs) == 0 {
+		return models.CompanySessionStart{}, fmt.Errorf("no problem to assign")
+	}
+
+	companyName := problems.DisplayName(slug)
+	profile := ai.CompanyProfile(slug)
+
+	// Choose the opener and the seeded history label from the problem count:
+	// one problem is a single-question session, two is a mock interview.
+	opening := ai.CompanyOpening(companyName, probs[0])
+	metaTitle, metaDifficulty := probs[0].Title, probs[0].Difficulty
+	mode := "single"
+	if len(probs) >= 2 {
+		opening = ai.MockOpening(companyName, probs[0])
+		metaTitle, metaDifficulty = fmt.Sprintf("Mock: %s + %s", probs[0].Title, probs[1].Title), ""
+		mode = "mock"
+	}
+
+	prefs, _ := a.db.GetPreferences()
+	model := prefs.Model
+
+	// problem_id (unused in the screen-driven flow) carries the company slug here
+	// as a harmless breadcrumb; the label lives in problem_title/difficulty.
+	id := uuid.New().String()
+	session, err := a.db.CreateSession(id, slug, model)
+	if err != nil {
+		return models.CompanySessionStart{}, err
+	}
+
+	a.active = &activeSession{
+		session: session,
+		history: []ai.ChatMessage{
+			{Role: "system", Content: ai.BuildCompanySystemPrompt(companyName, profile, probs)},
+		},
+	}
+
+	// Persist the opener to the transcript only (not model history).
+	if err := a.db.AddMessage(models.Message{
+		ID:        uuid.New().String(),
+		SessionID: id,
+		Role:      "assistant",
+		Content:   opening,
+		HasImage:  false,
+		CreatedAt: time.Now().UTC(),
+	}); err != nil {
+		log.Printf("company: persist opener: %v", err)
+	}
+
+	// Seed the session label so history shows it without an AI guess;
+	// extractSessionMeta later preserves these and only fills the final code.
+	if err := a.db.UpdateSessionMeta(id, metaTitle, metaDifficulty, ""); err != nil {
+		log.Printf("company: seed session meta: %v", err)
+	}
+
+	// Tag the session with the company + mode so history can badge it.
+	if err := a.db.SetSessionCompany(id, companyName, mode); err != nil {
+		log.Printf("company: tag session company: %v", err)
+	}
+
+	// Apply the saved region, then auto-start screen capture (same as StartSession).
+	a.capturer.SetRegion(prefs.CaptureDisplay, prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH)
+	a.capturer.Start(a.ctx, prefs.CaptureIntervalMs)
+
+	return models.CompanySessionStart{
+		Session:  session,
+		Company:  companyName,
+		Opening:  opening,
+		Problems: probs,
+	}, nil
+}
+
+// OpenURL opens a URL in the user's real browser (not the frameless webview), so
+// "Open on LeetCode" lands in Chrome/Safari rather than inside the overlay window.
+func (a *App) OpenURL(url string) error {
+	if url == "" {
+		return fmt.Errorf("no URL to open")
+	}
+	runtime.BrowserOpenURL(a.ctx, url)
+	return nil
 }
 
 // ---------------------------------------------------------------------------

@@ -28,6 +28,8 @@ const (
 	keySoftWarningMinutes  = "soft_warning_minutes"
 	keyPushToTalkEnabled   = "push_to_talk_enabled"
 	keyPushToTalkKey       = "push_to_talk_key"
+	keyLastCompany         = "last_company"
+	keyLastDifficulty      = "last_difficulty"
 )
 
 // GetAPIKey retrieves a stored API key. provider is "openrouter", "elevenlabs",
@@ -138,6 +140,12 @@ func (db *DB) GetPreferences() (models.Preferences, error) {
 	if v, err := db.getPref(keyPushToTalkKey); err == nil && v != "" {
 		p.PushToTalkKey = v
 	}
+	if v, err := db.getPref(keyLastCompany); err == nil {
+		p.LastCompany = v
+	}
+	if v, err := db.getPref(keyLastDifficulty); err == nil {
+		p.LastDifficulty = v
+	}
 	return p, nil
 }
 
@@ -189,7 +197,13 @@ func (db *DB) SavePreferences(p models.Preferences) error {
 	if err := db.setPref(keyPushToTalkEnabled, pttEnabled); err != nil {
 		return err
 	}
-	return db.setPref(keyPushToTalkKey, p.PushToTalkKey)
+	if err := db.setPref(keyPushToTalkKey, p.PushToTalkKey); err != nil {
+		return err
+	}
+	if err := db.setPref(keyLastCompany, p.LastCompany); err != nil {
+		return err
+	}
+	return db.setPref(keyLastDifficulty, p.LastDifficulty)
 }
 
 // getPref fetches a single preference value by key. Returns "" if not found.

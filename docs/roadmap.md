@@ -9,6 +9,7 @@
 - **Voice (Phase 2) is built (non-streaming v1).** Click-to-toggle mic → ElevenLabs Scribe (STT) → the normal interview loop → ElevenLabs Flash (TTS) spoken reply when "voice mode" is on. Voice selection lives in Settings; the overlay's "Live" indicator + mic are wired for real. Streaming TTS/AI-text is deferred.
 - **Phase 3 — UX** is in progress: **a global voice hotkey is built** (configurable, default `Right ⌥ Option`; press to start, press again to stop) and the **session history view is built** (expandable past-session list with full transcripts + delete, plus AI-derived problem title + difficulty).
 - **Distribution + auto-update (macOS) is built:** GitHub Actions builds on every push to `main` and publishes a public, downloadable Release on each `vX.Y.Z` tag; the app checks GitHub on launch and shows an "update available" banner. Unsigned (notify-and-download, not silent). See [ci-cd-and-auto-update.md](ci-cd-and-auto-update.md).
+- **Company Practice mode (Phase 6) is built:** a separate "Companies" tab where you pick a real interview-frequency LeetCode problem from ~654 companies, or hit **Mock Interview** for a two-problem draw (easier, then harder). The AI greets you in character and assigns the problem **by reference** (title + difficulty + link, never the statement), then the normal screen-driven loop runs, flavored by the company's style. The default Hub flow is unchanged. See [company-practice-plan.md](company-practice-plan.md).
 
 ## Implementation phases
 
@@ -67,22 +68,32 @@
 
 - [ ] Difficulty adaptation (AI adjusts hint level based on progress)
 - [ ] Timer / time pressure mode
-- [ ] Multi-problem interview sets (simulate a full interview round) — pairs well with Phase 6
+- [x] Multi-problem interview sets (simulate a full interview round) — **built as Company Practice's Mock Interview** (two-problem draw); see Phase 6
 
-### Phase 6 — Company Practice mode (opt-in, additive) — ☐ Planned
+### Phase 6 — Company Practice mode (opt-in, additive) — ✅ Done
 
 > Detailed, phased plan: [company-practice-plan.md](company-practice-plan.md).
 
-Practice for a specific company: the AI greets you in character, assigns a high-frequency LeetCode
-problem (by reference — title + difficulty + link, never the problem text, so the screen-driven
-invariant holds), asks you to open it, then runs the normal screen-driven interview flavored by
-that company's style. **The default Hub flow is unchanged.**
+Practice for a specific company two ways: **browse & pick** a real interview-frequency LeetCode
+problem, or hit **Mock Interview** for a two-problem draw (easier first, harder second). The AI
+greets you in character and assigns the problem (by reference — title + difficulty + link, never the
+problem text, so the screen-driven invariant holds), asks you to open it, then runs the normal
+screen-driven interview flavored by that company's style. **The default Hub flow is unchanged.**
 
-- [ ] Phase 0 — curate company question metadata (top-by-frequency, from
-      [liquidslr/interview-company-wise-problems](https://github.com/liquidslr/interview-company-wise-problems)) + author `companyProfiles` style map
-- [ ] Phase 1 — `internal/problems` package, `models.Problem`, `BuildCompanySystemPrompt`,
-      `StartCompanySession` (struct return) + templated opener, bound methods, `OpenURL`
-- [ ] Phase 2 — new "Company Practice" pill-nav tab: picker, difficulty filter, sort by frequency,
-      randomize, "Open on LeetCode"; reuse the active-session UI
-- [ ] Phase 3 — polish: persist last company/difficulty, session-row persistence, optional
-      AI-generated opener, tests + docs
+- [x] Phase 0 — data pipeline: `internal/problems/gen` downloads
+      [snehasishroy/leetcode-companywise-interview-questions](https://github.com/snehasishroy/leetcode-companywise-interview-questions),
+      trims it to a committed, `go:embed`-ed CSV (654 companies, 17,641 problems — factual metadata
+      only), plus authored `companyProfiles`
+- [x] Phase 1 — `internal/problems` package (`models.Problem`/`CompanyInfo`, lazy embed parse,
+      `Companies`/`Problems`/`MockPair` frequency-weighted draw) + unit tests
+- [x] Phase 2 — prompts: `BuildCompanySystemPrompt` (single + mock, encodes the AI-greeted-first
+      framing) and templated openers + tests
+- [x] Phase 3 — bindings: `ListCompanies` / `ListCompanyProblems` / `StartCompanySession` /
+      `StartMockInterview` / `OpenURL`, returning `CompanySessionStart`
+- [x] Phase 4 — "Companies" pill-nav tab: searchable company list → browse & pick (difficulty
+      chips, frequency/title/difficulty sort, "Open on LeetCode"), Mock Interview CTA + confirm
+      modal (no titles), session banner with a face-down Q2 reveal card; reuses the active-session UI
+- [x] Phase 5 — polish: persist last company + difficulty filter, session-row company/mode
+      persistence with a History badge, tests + docs
+- [ ] Stretch (deferred): mock repeat-avoidance, elapsed-time pacing context, embed +
+      background-refresh, AI-generated opener

@@ -96,6 +96,10 @@ func (db *DB) migrate() error {
 		// post-interview scorecard JSON so re-opening it costs no tokens.
 		{"sessions", "final_code", "ALTER TABLE sessions ADD COLUMN final_code TEXT"},
 		{"sessions", "debrief", "ALTER TABLE sessions ADD COLUMN debrief TEXT"},
+		// company (display name) and mode ("single"/"mock") are set only for
+		// Company Practice sessions so history can badge them; empty otherwise.
+		{"sessions", "company", "ALTER TABLE sessions ADD COLUMN company TEXT"},
+		{"sessions", "mode", "ALTER TABLE sessions ADD COLUMN mode TEXT"},
 	}
 	for _, m := range migrations {
 		if err := db.addColumnIfMissing(m.table, m.column, m.ddl); err != nil {

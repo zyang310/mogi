@@ -60,7 +60,7 @@ All local state lives in one SQLite file, created on first launch (`store.Open`,
 
 `migrate()` creates three tables idempotently (columns added in later versions are backfilled via `addColumnIfMissing`):
 
-- **`sessions`** — one row per interview: `id`, `problem_id` (unused; `""` for screen-driven), `model`, `started_at`, `ended_at`, the AI-derived `problem_title` / `difficulty`, the `final_code` snapshot (text transcription of the candidate's final on-screen solution, captured at session end), and the cached `debrief` JSON (generated on first open). Written by `CreateSession` (on start) and `EndSession` (stamps `ended_at`); labeled + code-snapshotted by `UpdateSessionMeta`; debrief cached by `SaveSessionDebrief`; removed by `DeleteSession`.
+- **`sessions`** — one row per interview: `id`, `problem_id` (`""` for screen-driven; carries the company slug for Company Practice), `model`, `started_at`, `ended_at`, `problem_title` / `difficulty` (AI-derived for screen-driven; **seeded from the assigned problem** for Company Practice, and preserved by the end-of-session labeling call), the `final_code` snapshot (text transcription of the candidate's final on-screen solution, captured at session end), the cached `debrief` JSON (generated on first open), and `company` / `mode` (`"single"`/`"mock"`, set only for Company Practice so History can badge them). Written by `CreateSession` (on start) and `EndSession` (stamps `ended_at`); labeled + code-snapshotted by `UpdateSessionMeta`; company-tagged by `SetSessionCompany`; debrief cached by `SaveSessionDebrief`; removed by `DeleteSession`.
 - **`messages`** — one row per turn (user + interviewer): `role`, `content`, `has_image`, `created_at`. Written by `AddMessage` for **both** turns of every `SendMessage` — this is the stored transcript. **Text only; screenshots are never persisted** (they live in memory during the live session, then are discarded).
 - **`preferences`** — a generic key-value store ([../internal/store/preferences.go](../internal/store/preferences.go)) for settings **and** API keys (stored locally, unencrypted — see roadmap Phase 4).
 
@@ -98,6 +98,17 @@ func (a *App) ListSessions() ([]models.SessionSummary, error)            // reve
 func (a *App) GetSessionTranscript(id string) ([]models.Message, error)  // full transcript, lazy-loaded when a row is expanded
 func (a *App) GetDebrief(id string) (models.Debrief, error)              // post-interview scorecard; generated once (transcript + final_code) then cached in sessions.debrief
 func (a *App) DeleteSession(id string) error                            // deletes the session + its messages (refuses the active session)
+
+// Company Practice (opt-in tab) — question pools from internal/problems (embedded
+// metadata only). Problems are assigned by reference; the AI still reads the real
+// problem off the screenshot. Both Start* return CompanySessionStart {Session,
+// Company, Opening, Problems}; the opener is persisted to the transcript but NOT
+// into model history (the system prompt carries the assignment).
+func (a *App) ListCompanies() []models.CompanyInfo                                                          // pool summaries (name, count, mockEligible)
+func (a *App) ListCompanyProblems(slug string) ([]models.Problem, error)                                    // one company's pool (filtered/sorted client-side)
+func (a *App) StartCompanySession(slug string, problem models.Problem) (models.CompanySessionStart, error)  // single chosen problem
+func (a *App) StartMockInterview(slug string) (models.CompanySessionStart, error)                           // two-problem draw (server-side; the picker never sees them)
+func (a *App) OpenURL(url string) error                                                                     // open a LeetCode link in the real browser
 
 // Settings
 func (a *App) GetPreferences() (models.Preferences, error)
@@ -141,6 +152,8 @@ The system prompt ([../internal/ai/prompts.go](../internal/ai/prompts.go)) is th
 - Match the tone of a senior engineer, not a cheerful chatbot
 
 **There is no written problem statement.** A screenshot of the candidate's current screen is attached to their **latest message only** — the interviewer reads the problem and the current code from it (it may show an IDE, a LeetCode/NeetCode page, a terminal, or a browser). Earlier messages do not carry screenshots; this is intentional. Conversation history is included for continuity. If the interviewer can't yet tell what the problem is, it asks the candidate to clarify rather than guessing.
+
+**Company Practice** builds on the same base via `BuildCompanySystemPrompt` ([../internal/ai/prompts.go](../internal/ai/prompts.go)): it appends a company persona (from `companyProfiles`) and the assignment **by reference** (title + difficulty only — never the statement). So the interviewer can "greet first" without a leading assistant turn in model history (which some models reject), the opener is a **deterministic template** — persisted to the transcript and spoken (if voice is on) — while the system prompt *encodes* that the greeting already happened; model history stays `system → user → …`. Mock interviews carry **both** problems plus the Q1→Q2 handoff rules (never name Q2 early; move on when Q1 is solved, the candidate is stuck, or they ask). See [company-practice-plan.md](company-practice-plan.md).
 
 Two further prompts live in the same file, both **post-session only** (never fed to the live interview, so the screen-driven invariant holds): **`SessionMetaPrompt`** labels a *finished* session with a short title + difficulty **and transcribes the final on-screen code** from the end-of-session screenshot (strict-JSON, parsed by `ExtractSessionMeta`); **`DebriefPrompt`** drops the interviewer persona and returns the post-interview scorecard JSON (parsed by `GenerateDebrief`) over the transcript + captured `final_code`. Both reply in strict JSON and reuse the same brace-extraction tolerance.
 

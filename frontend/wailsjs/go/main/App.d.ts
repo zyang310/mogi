@@ -32,6 +32,10 @@ export function GetSessionTranscript(arg1:string):Promise<Array<models.Message>>
 
 export function ListAvailableModels():Promise<Array<models.Model>>;
 
+export function ListCompanies():Promise<Array<models.CompanyInfo>>;
+
+export function ListCompanyProblems(arg1:string):Promise<Array<models.Problem>>;
+
 export function ListDisplays():Promise<Array<capture.DisplayInfo>>;
 
 export function ListSessions():Promise<Array<models.SessionSummary>>;
@@ -43,6 +47,8 @@ export function MinimiseWindow():Promise<void>;
 export function OpenInputMonitoringSettings():Promise<void>;
 
 export function OpenReleasePage(arg1:string):Promise<void>;
+
+export function OpenURL(arg1:string):Promise<void>;
 
 export function PreviewVoice(arg1:string):Promise<string>;
 
@@ -59,6 +65,10 @@ export function SetOverlayExpanded(arg1:boolean):Promise<void>;
 export function SnapshotDisplay(arg1:number):Promise<string>;
 
 export function StartCapture(arg1:number):Promise<void>;
+
+export function StartCompanySession(arg1:string,arg2:models.Problem):Promise<models.CompanySessionStart>;
+
+export function StartMockInterview(arg1:string):Promise<models.CompanySessionStart>;
 
 export function StartSession(arg1:string):Promise<models.Session>;
 

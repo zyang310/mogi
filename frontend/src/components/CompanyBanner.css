@@ -1,0 +1,122 @@
+/* ── Company session banner ───────────────────────────────────────────────
+   Sits between the session bar and the capture/chat body during a Company
+   Practice session: company identity on the left, assigned problem chip(s) on
+   the right. */
+.company-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 32px;
+  border-bottom: 1px solid var(--surface-container-highest);
+  background-color: var(--surface-container-low);
+}
+
+.company-banner-co {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.company-banner-co .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--on-surface-variant);
+}
+
+.company-banner-co-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.company-banner-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--secondary);
+  border: 1px solid var(--secondary);
+}
+
+.company-banner-probs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── Problem chip ──────────────────────────────────────────────────────── */
+.prob-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 999px;
+  background-color: var(--surface-container);
+}
+
+.prob-chip-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+
+.prob-chip-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.prob-chip-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.prob-chip-link:hover {
+  background-color: var(--surface-container-highest);
+  color: var(--on-surface);
+}
+
+.prob-chip-link .material-symbols-outlined {
+  font-size: 16px;
+}
+
+/* Face-down Q2 card — dashed outline, muted, clickable to reveal. */
+.prob-chip-hidden {
+  border-style: dashed;
+  border-color: var(--outline-variant);
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  font-family: inherit;
+  padding: 6px 14px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.prob-chip-hidden:hover {
+  color: var(--on-surface);
+  border-color: var(--outline);
+}
+
+.prob-chip-hidden .material-symbols-outlined {
+  font-size: 15px;
+}
+
+.prob-chip-hidden-text {
+  font-size: 12px;
+  font-weight: 500;
+}

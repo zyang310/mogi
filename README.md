@@ -162,3 +162,7 @@ Both should exit cleanly with no errors.
 ## Configuration
 
 API keys are entered in the app's **Settings → API Keys** panel (or the first-run setup screen) — no `.env` file. See [**API keys**](#api-keys) above for step-by-step instructions on getting each one. All keys are stored locally in SQLite and never leave your machine except as the auth header on requests to that provider.
+
+## Credits
+
+Company Practice mode's question pools are generated from [snehasishroy/leetcode-companywise-interview-questions](https://github.com/snehasishroy/leetcode-companywise-interview-questions) (scraped from LeetCode's premium company-frequency filter). We ship **factual metadata only** — problem titles, difficulties, frequencies, and links — never problem statements. See [`internal/problems/data/SOURCE.md`](internal/problems/data/SOURCE.md) for the snapshot date and how to regenerate.

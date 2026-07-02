@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import Chat from "./components/Chat";
 import { cleanForDisplay } from "./lib/markdown";
 import CapturePanel from "./components/CapturePanel";
+import CompanyBanner from "./components/CompanyBanner";
+import CompanyPractice from "./components/CompanyPractice";
 import History from "./components/History";
 import HubReady from "./components/HubReady";
 import Overlay from "./components/Overlay";
@@ -23,6 +25,7 @@ import {
   SetOverlayExpanded,
   SynthesizeSpeech,
   TranscribeAudio,
+  UpdatePreferences,
   models,
 } from "./lib/wailsBridge";
 import { useVoiceRecorder } from "./lib/useVoiceRecorder";
@@ -58,8 +61,11 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [regionOpen, setRegionOpen] = useState(false);
-  const [view, setView] = useState<"hub" | "history" | "settings">("hub");
+  const [view, setView] = useState<"hub" | "company" | "history" | "settings">("hub");
   const [overlayMode, setOverlayMode] = useState(false);
+  // Set while a Company Practice / mock session is active; drives the session
+  // banner and is cleared when the session ends. null for default Hub sessions.
+  const [companySession, setCompanySession] = useState<models.CompanySessionStart | null>(null);
   const [error, setError] = useState("");
 
   // Voice: mic recorder + audio player, plus session-level "voice mode" (when on,
@@ -99,6 +105,23 @@ function App() {
       setPrefs(p);
     } catch {
       // Wails runtime not present in browser preview
+    }
+  }
+
+  // Persist the Company Practice tab's last company + difficulty so it resumes
+  // where the user left off. Merges into the current prefs; best-effort.
+  async function rememberCompany(slug: string, difficulty: string) {
+    if (!prefs) return;
+    const next = new models.Preferences({
+      ...prefs,
+      lastCompany: slug,
+      lastDifficulty: difficulty,
+    });
+    setPrefs(next);
+    try {
+      await UpdatePreferences(next);
+    } catch {
+      // Non-fatal — resume is a convenience.
     }
   }
 
@@ -161,12 +184,26 @@ function App() {
     setError("");
     try {
       const session = await StartSession("");
+      setCompanySession(null); // default Hub session — no company context
       setSessionId(session.id);
       setSessionStartedAt(new Date(session.startedAt));
       setMessages([]);
     } catch (e: any) {
       setError(e?.message || String(e));
     }
+  }
+
+  // Enter the active-session UI for a company/mock session started by the
+  // CompanyPractice tab. The backend already created the session and persisted
+  // the opener; we mirror the opener as the first interviewer turn and speak it
+  // when voice mode is on (speak() itself no-ops otherwise).
+  function handleCompanyStarted(start: models.CompanySessionStart) {
+    setError("");
+    setCompanySession(start);
+    setSessionId(start.session.id);
+    setSessionStartedAt(new Date(start.session.startedAt));
+    setMessages(start.opening ? [{ role: "assistant", content: start.opening }] : []);
+    if (start.opening) void speak(start.opening);
   }
 
   async function handleEnd() {
@@ -181,6 +218,7 @@ function App() {
     } finally {
       setSessionId(null);
       setSessionStartedAt(null);
+      setCompanySession(null);
     }
   }
 
@@ -386,6 +424,13 @@ function App() {
           <span className="pill-tab-label">Hub</span>
         </button>
         <button
+          className={`pill-tab${view === "company" ? " active" : ""}`}
+          onClick={() => setView("company")}
+        >
+          <span className="material-symbols-outlined">domain</span>
+          <span className="pill-tab-label">Companies</span>
+        </button>
+        <button
           className={`pill-tab${view === "history" ? " active" : ""}`}
           onClick={() => setView("history")}
         >
@@ -441,13 +486,22 @@ function App() {
         ) : view === "history" ? (
           <History />
         ) : !isActive ? (
-          <HubReady
-            onStart={handleStart}
-            onDefineRegion={() => setRegionOpen(true)}
-            onFullScreen={handleFullScreen}
-            canStart={authStatus.openRouterConfigured}
-            targetLabel={targetLabel}
-          />
+          view === "company" ? (
+            <CompanyPractice
+              onStarted={handleCompanyStarted}
+              initialCompany={prefs?.lastCompany ?? ""}
+              initialDifficulty={prefs?.lastDifficulty ?? "All"}
+              onRemember={rememberCompany}
+            />
+          ) : (
+            <HubReady
+              onStart={handleStart}
+              onDefineRegion={() => setRegionOpen(true)}
+              onFullScreen={handleFullScreen}
+              canStart={authStatus.openRouterConfigured}
+              targetLabel={targetLabel}
+            />
+          )
         ) : (
           <>
             {/* Active-session bar */}
@@ -477,6 +531,9 @@ function App() {
                 </button>
               </div>
             </div>
+
+            {/* Company/mock session banner (assigned problem + Q2 reveal card) */}
+            {companySession && <CompanyBanner start={companySession} />}
 
             {/* Capture + chat */}
             <main className="app-body">

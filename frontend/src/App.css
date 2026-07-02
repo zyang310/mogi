@@ -51,8 +51,13 @@
   color: var(--secondary);
 }
 
-/* Glowing indicator bar above the active tab */
-.pill-tab.active::before {
+/* Glowing indicator bar above the active tab. The glow comes from box-shadow,
+   NOT filter: blur() — a filtered element gets its own compositing backing store
+   in the frameless/transparent WKWebView window, and fading it out leaves the
+   blurred texture behind as a ghost on the previously-active tab (it never gets
+   invalidated). box-shadow paints into the element's normal layer, so no stale
+   backing store. Kept always-mounted and opacity-gated for a smooth fade. */
+.pill-tab::before {
   content: "";
   position: absolute;
   top: -8px;
@@ -62,7 +67,13 @@
   height: 4px;
   border-radius: 9999px;
   background: var(--secondary);
-  filter: blur(2px);
+  box-shadow: 0 0 8px 1px var(--secondary);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.pill-tab.active::before {
+  opacity: 1;
 }
 
 .pill-tab .material-symbols-outlined {
@@ -257,4 +268,33 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* ── Difficulty badge + recent chip (shared: Company Practice list + banner) ─
+   Outlined pills — colored text + matching border, no fill — so they read on the
+   dark surfaces (mirrors .model-badge). Colour-codes the LeetCode difficulty. */
+.diff-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.diff-badge.easy { color: var(--secondary); }
+.diff-badge.medium { color: var(--warning); }
+.diff-badge.hard { color: var(--error); }
+
+.recent-chip {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  white-space: nowrap;
 }
