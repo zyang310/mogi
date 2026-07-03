@@ -13,16 +13,16 @@ import (
 // difficulties, and a sensible error for an unknown company.
 func TestEmbedData(t *testing.T) {
 	companies := Companies()
-	if len(companies) != 654 {
-		t.Errorf("company count = %d, want 654", len(companies))
+	if len(companies) != 647 {
+		t.Errorf("company count = %d, want 647", len(companies))
 	}
 
 	total := 0
 	for _, c := range companies {
 		total += c.ProblemCount
 	}
-	if total != 17641 {
-		t.Errorf("total problems = %d, want 17641", total)
+	if total != 16914 {
+		t.Errorf("total problems = %d, want 16914", total)
 	}
 
 	// google's pool: Two Sum should be present with a derived URL and canonical

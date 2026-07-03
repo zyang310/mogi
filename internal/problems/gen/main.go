@@ -14,6 +14,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"encoding/csv"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -30,6 +31,15 @@ import (
 const (
 	tarballURL = "https://codeload.github.com/snehasishroy/leetcode-companywise-interview-questions/tar.gz/refs/heads/master"
 	sourceRepo = "https://github.com/snehasishroy/leetcode-companywise-interview-questions"
+	// algorithmsURL lists every problem in LeetCode's "algorithms" category — the
+	// coding problems we keep. Anything absent from it (SQL/database, pandas,
+	// shell, concurrency, javascript) is filtered out so Company Practice stays
+	// algorithmic. Unauthenticated and stable.
+	algorithmsURL = "https://leetcode.com/api/problems/algorithms/"
+	// minAlgorithms is a floor on the fetched allowlist size: the algorithms
+	// category has thousands of problems, so a set smaller than this means the
+	// endpoint changed or failed and must not be trusted to trim the CSV.
+	minAlgorithms = 1000
 )
 
 // recentWindows are the per-company CSV files whose problems count as "recently
@@ -84,6 +94,15 @@ func main() {
 // frequency desc) plus the number of distinct companies.
 func generate() ([]outRow, int, error) {
 	client := &http.Client{Timeout: 2 * time.Minute}
+
+	// Fetch the algorithm-problem allowlist first: if it's unavailable we abort
+	// before downloading the (large) tarball, and never risk trimming the CSV
+	// against a bad list.
+	keepSlugs, err := fetchAlgorithmSlugs(client)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	resp, err := client.Get(tarballURL)
 	if err != nil {
 		return nil, 0, fmt.Errorf("download tarball: %w", err)
@@ -148,12 +167,12 @@ func generate() ([]outRow, int, error) {
 	}
 
 	var rows []outRow
-	companies := 0
+	droppedRows := 0
+	droppedSlugs := map[string]bool{} // distinct non-algorithm problems removed
 	for company, cd := range data {
 		if len(cd.all) < 2 { // no all.csv, or header only
 			continue
 		}
-		companies++
 		// all.csv columns: ID,URL,Title,Difficulty,Acceptance %,Frequency %.
 		for _, rec := range cd.all[1:] {
 			if len(rec) < 6 {
@@ -162,6 +181,14 @@ func generate() ([]outRow, int, error) {
 			slug := slugFromURL(rec[1])
 			title := strings.TrimSpace(rec[2])
 			if slug == "" || title == "" {
+				continue
+			}
+			// Keep only algorithm-category problems; the allowlist drops SQL
+			// (database), pandas, shell, concurrency and javascript so Company
+			// Practice stays algorithmic coding.
+			if !keepSlugs[slug] {
+				droppedRows++
+				droppedSlugs[slug] = true
 				continue
 			}
 			id, _ := strconv.Atoi(strings.TrimSpace(rec[0]))
@@ -178,6 +205,16 @@ func generate() ([]outRow, int, error) {
 		}
 	}
 
+	// Count companies from what survived the filter: a company whose pool was
+	// entirely non-algorithmic drops out of the data the app actually sees.
+	companySet := map[string]bool{}
+	for _, r := range rows {
+		companySet[r.company] = true
+	}
+	companies := len(companySet)
+	log.Printf("gen: kept %d rows, dropped %d rows (%d distinct non-algorithm problems) across %d companies",
+		len(rows), droppedRows, len(droppedSlugs), companies)
+
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].company != rows[j].company {
 			return rows[i].company < rows[j].company
@@ -189,6 +226,47 @@ func generate() ([]outRow, int, error) {
 	})
 
 	return rows, companies, nil
+}
+
+// fetchAlgorithmSlugs returns the set of LeetCode algorithm-problem slugs, used
+// as an allowlist when trimming the company data. It validates the response is
+// plausibly complete (a large set containing a known sentinel) so a flaky or
+// changed endpoint can't silently gut the committed CSV.
+func fetchAlgorithmSlugs(client *http.Client) (map[string]bool, error) {
+	resp, err := client.Get(algorithmsURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetch algorithms list: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch algorithms list: HTTP %d", resp.StatusCode)
+	}
+
+	// The endpoint returns one entry per problem; we only need each slug.
+	var payload struct {
+		StatStatusPairs []struct {
+			Stat struct {
+				Slug string `json:"question__title_slug"`
+			} `json:"stat"`
+		} `json:"stat_status_pairs"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("decode algorithms list: %w", err)
+	}
+
+	slugs := make(map[string]bool, len(payload.StatStatusPairs))
+	for _, p := range payload.StatStatusPairs {
+		if s := strings.TrimSpace(p.Stat.Slug); s != "" {
+			slugs[s] = true
+		}
+	}
+
+	// Sanity gate: refuse an implausible list rather than dropping most of the CSV.
+	if len(slugs) < minAlgorithms || !slugs["two-sum"] {
+		return nil, fmt.Errorf("algorithms list looks wrong: %d slugs (< %d) or missing sentinel two-sum (present=%v)",
+			len(slugs), minAlgorithms, slugs["two-sum"])
+	}
+	return slugs, nil
 }
 
 // splitEntry parses a tar entry name like "<repo>-master/google/all.csv" into
@@ -280,6 +358,9 @@ func writeSource(path string, rowCount, companyCount int) error {
 		"We ship **factual metadata only** — titles, difficulties, frequencies, and\n"+
 		"acceptance rates — never problem statements. LeetCode links are rebuilt from\n"+
 		"the slug (`https://leetcode.com/problems/{slug}`), so only the slug is stored.\n\n"+
+		"**Algorithm problems only.** Rows are filtered against LeetCode's `algorithms`\n"+
+		"category, so SQL (database), Pandas, Shell, Concurrency and JavaScript problems\n"+
+		"are excluded — this app is an algorithmic coding interview.\n\n"+
 		"Regenerate with:\n\n"+
 		"    go generate ./internal/problems/\n\n"+
 		"The upstream repository has no license file; we regenerate the data rather\n"+

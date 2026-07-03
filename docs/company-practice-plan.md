@@ -60,6 +60,10 @@ Measured facts that shape the design (from the 2026-05 snapshot):
 
 - `all.csv` exists for **654** companies — **17,641 rows**, 3,358 unique problems. Trimmed to the
   columns we need, the whole dataset is **~1.6 MB raw / ~400 KB gzipped**.
+- **Algorithm problems only:** the generator filters rows against LeetCode's `algorithms` category,
+  dropping SQL/database, Pandas, Shell, Concurrency and JavaScript problems (this is an algorithmic
+  coding interview). The **shipped** CSV is **647 companies / 16,914 rows** (7 all-non-algorithm
+  companies drop out entirely).
 - Recency windows are sparse: only **217** companies have `six-months.csv` — but those are exactly
   the big targets (Google 751, Amazon 665, Meta 385 recent problems). The long tail is thin:
   **175** companies have a single recorded problem, 484 have fewer than ten, 246 have only one
@@ -192,7 +196,7 @@ re-roll we'd then have to argue about.
    - Browse-side filtering/sorting stays **frontend-side** over `Problems` (it's responsive and
      trivial); only `MockPair` lives in Go — the weighted, fallback-laden draw is exactly the
      logic that wants unit tests.
-5. **Tests** (`internal/problems`): embed parses (654 companies, >17k rows, URLs derived,
+5. **Tests** (`internal/problems`): embed parses (647 companies, ~16.9k rows, URLs derived,
    difficulties canonical); `MockPair` invariants over many seeded draws — Q1 tier < Q2 tier, or
    same tier ordered by acceptance; recent-subset preferred when ≥ 20; degenerate pools
    (single-tier, zero-Easy, 2-problem) never panic and respect ordering; pool < 5 errors;
