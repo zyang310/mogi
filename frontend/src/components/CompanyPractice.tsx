@@ -29,6 +29,9 @@ interface Props {
   // Persist the current company slug + difficulty (empty slug clears it). The
   // parent (App) merges these into Preferences.
   onRemember?: (slug: string, difficulty: string) => void;
+  // Suggested time budget for a mock interview, shown in the confirm dialog so it
+  // matches the session timer. 0 means untimed (the user disabled the limit).
+  mockLimitMinutes: number;
 }
 
 // Rank used to sort by difficulty (Easy first) — matches the backend's tiers.
@@ -50,6 +53,7 @@ export default function CompanyPractice({
   initialCompany,
   initialDifficulty,
   onRemember,
+  mockLimitMinutes,
 }: Props) {
   const [companies, setCompanies] = useState<models.CompanyInfo[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(true);
@@ -474,8 +478,12 @@ export default function CompanyPractice({
             </p>
             <ul className="company-modal-points">
               <li>
-                <span className="material-symbols-outlined">schedule</span>~45 minutes
-                suggested
+                <span className="material-symbols-outlined">
+                  {mockLimitMinutes > 0 ? "schedule" : "timer_off"}
+                </span>
+                {mockLimitMinutes > 0
+                  ? `~${mockLimitMinutes} minutes suggested`
+                  : "Untimed — practice at your own pace"}
               </li>
               <li>
                 <span className="material-symbols-outlined">visibility_off</span>

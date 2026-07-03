@@ -44,6 +44,11 @@ function formatTime(sec: number): string {
   return `${m}:${s}`;
 }
 
+// MOCK_LIMIT_MINUTES is the fixed time budget for a mock interview (two problems),
+// sized to a real two-problem screen. Single-problem practice uses the user's
+// configured session limit instead; untimed (limit 0) stays untimed for both.
+const MOCK_LIMIT_MINUTES = 45;
+
 function App() {
   const [authStatus, setAuthStatus] = useState<models.AuthStatus>(
     new models.AuthStatus({
@@ -377,7 +382,13 @@ function App() {
   }
 
   const isActive = sessionId !== null;
-  const limitSec = (prefs?.sessionLimitMinutes ?? 30) * 60;
+  // A mock is the only session with two assigned problems; it gets the fixed
+  // MOCK_LIMIT_MINUTES budget. Single-problem practice (and Hub sessions) use the
+  // configured limit. Untimed (0) is preserved for both — never force a mock timer.
+  const baseLimitMinutes = prefs?.sessionLimitMinutes ?? 30;
+  const isMockSession = !!companySession && companySession.problems.length > 1;
+  const mockLimitMinutes = baseLimitMinutes === 0 ? 0 : MOCK_LIMIT_MINUTES;
+  const limitSec = (isMockSession ? mockLimitMinutes : baseLimitMinutes) * 60;
   const warnSec = (prefs?.softWarningMinutes ?? 25) * 60;
   const timedOut = isActive && limitSec > 0 && elapsedSec >= limitSec;
   const nearLimit = isActive && limitSec > 0 && warnSec > 0 && elapsedSec >= warnSec && !timedOut;
@@ -492,6 +503,7 @@ function App() {
               initialCompany={prefs?.lastCompany ?? ""}
               initialDifficulty={prefs?.lastDifficulty ?? "All"}
               onRemember={rememberCompany}
+              mockLimitMinutes={mockLimitMinutes}
             />
           ) : (
             <HubReady
