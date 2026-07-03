@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + the annotated tag object, so we can read its message below
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -49,6 +51,19 @@ jobs:
           TAG="${GITHUB_REF_NAME}"            # e.g. v0.2.0
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "num=${TAG#v}" >> "$GITHUB_OUTPUT"  # 0.2.0 (no leading v) for the plist
+
+      # Curated release highlights come from the annotated tag's message body (the
+      # text after the tag's subject line). Lightweight tags have no body, so this
+      # is empty and the notes fall back to just the auto-generated changelog.
+      - name: Extract release highlights from tag
+        id: notes
+        run: |
+          BODY="$(git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents:body)')"
+          {
+            echo "highlights<<__NOTES_EOF__"
+            echo "$BODY"
+            echo "__NOTES_EOF__"
+          } >> "$GITHUB_OUTPUT"
 
       # Stamp the macOS plist version so Finder "Get Info" matches the tag.
       - name: Stamp plist version
@@ -79,6 +94,8 @@ jobs:
           generate_release_notes: true
           body: |
             ## AI Interviewer ${{ steps.ver.outputs.tag }}
+
+            ${{ steps.notes.outputs.highlights }}
 
             macOS universal build — runs on Apple Silicon and Intel Macs.
 
