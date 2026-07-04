@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { OpenURL, models } from "../lib/wailsBridge";
+import { OpenURL, models } from "../../lib/wailsBridge";
 import "./CompanyBanner.css";
 
 interface Props {

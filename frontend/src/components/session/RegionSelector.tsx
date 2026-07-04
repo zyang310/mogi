@@ -4,7 +4,7 @@ import {
   SnapshotDisplay,
   SetCaptureRegion,
   capture,
-} from "../lib/wailsBridge";
+} from "../../lib/wailsBridge";
 import "./RegionSelector.css";
 
 interface Props {

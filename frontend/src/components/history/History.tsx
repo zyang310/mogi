@@ -5,7 +5,7 @@ import {
   GetDebrief,
   DeleteSession,
   models,
-} from "../lib/wailsBridge";
+} from "../../lib/wailsBridge";
 import SessionHistoryCard from "./SessionHistoryCard";
 import "./History.css";
 

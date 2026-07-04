@@ -6,7 +6,7 @@ import {
   StartMockInterview,
   OpenURL,
   models,
-} from "../lib/wailsBridge";
+} from "../../lib/wailsBridge";
 import "./CompanyPractice.css";
 
 type Difficulty = "All" | "Easy" | "Medium" | "Hard";

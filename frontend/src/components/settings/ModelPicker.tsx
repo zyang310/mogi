@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ListAvailableModels, models } from "../lib/wailsBridge";
+import { ListAvailableModels, models } from "../../lib/wailsBridge";
 import "./ModelPicker.css";
 
 interface Props {

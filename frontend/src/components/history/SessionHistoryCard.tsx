@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { models } from "../lib/wailsBridge";
-import MessageBubble from "./MessageBubble";
+import { models } from "../../lib/wailsBridge";
+import MessageBubble from "../common/MessageBubble";
 import Debrief from "./Debrief";
-import { formatSessionDate, formatDuration, prettyModel } from "../lib/format";
+import { formatSessionDate, formatDuration, prettyModel } from "../../lib/format";
 import "./SessionHistoryCard.css";
 
 interface Props {

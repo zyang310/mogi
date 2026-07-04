@@ -29,6 +29,26 @@
 
 All external API calls are centralized in the Go backend. The frontend handles UI rendering only (and, in Phase 2, mic recording + audio playback). API keys and tokens never touch the frontend layer.
 
+### Frontend structure (feature folders)
+
+Components live in `frontend/src/components/`, **one component + its own CSS each, grouped into a folder per feature (mostly a nav tab)** — so a reader opens `components/` and sees the app's surface area, not a flat 18-file list:
+
+```
+frontend/src/
+├─ App.tsx        UI shell: floating pill-nav → tab views + live-session / overlay orchestration
+├─ lib/           wailsBridge (the single Go-call entry point) + hooks + format / hotkey / markdown / audioToWav
+└─ components/
+   ├─ hub/        HubReady                                        — "Hub" tab (idle landing / start)
+   ├─ company/    CompanyPractice · CompanyBanner                 — "Companies" tab
+   ├─ history/    History · SessionHistoryCard · Debrief · RadarChart   — "History" tab
+   ├─ settings/   Settings · ModelPicker · VoicePicker            — "Settings" tab
+   ├─ session/    Chat · CapturePanel · Overlay · RegionSelector  — live interview (capture + chat + overlay)
+   ├─ setup/      SetupPage                                       — first-run onboarding
+   └─ common/     MessageBubble · WindowControls · UpdateBanner   — shared UI + app shell
+```
+
+Each feature folder owns its components outright; `common/` holds only genuinely cross-cutting pieces — `MessageBubble` is reused by both `session/Chat` and `history/SessionHistoryCard`, while `WindowControls` and `UpdateBanner` are app-shell chrome rendered directly by `App.tsx`. Cross-folder imports flow **into** `common/`, never sideways between feature folders.
+
 ## Data flow (core interview loop)
 
 The app is **screen-driven** — the problem is never sent as text; it lives in the screenshot.

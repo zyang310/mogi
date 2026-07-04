@@ -50,3 +50,6 @@ frontend/package.json.md5
 
 # markdown files
 changes.md
+
+# personal, untracked docs (release cheat sheet, etc.)
+docs/releasing.local.md

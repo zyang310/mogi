@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import Chat from "./components/Chat";
+import CapturePanel from "./components/session/CapturePanel";
+import Chat from "./components/session/Chat";
+import Overlay from "./components/session/Overlay";
+import RegionSelector from "./components/session/RegionSelector";
+import CompanyBanner from "./components/company/CompanyBanner";
+import CompanyPractice from "./components/company/CompanyPractice";
+import History from "./components/history/History";
+import HubReady from "./components/hub/HubReady";
+import Settings from "./components/settings/Settings";
+import SetupPage from "./components/setup/SetupPage";
+import UpdateBanner from "./components/common/UpdateBanner";
+import WindowControls from "./components/common/WindowControls";
 import { cleanForDisplay } from "./lib/markdown";
-import CapturePanel from "./components/CapturePanel";
-import CompanyBanner from "./components/CompanyBanner";
-import CompanyPractice from "./components/CompanyPractice";
-import History from "./components/History";
-import HubReady from "./components/HubReady";
-import Overlay from "./components/Overlay";
-import RegionSelector from "./components/RegionSelector";
-import Settings from "./components/Settings";
-import SetupPage from "./components/SetupPage";
-import UpdateBanner from "./components/UpdateBanner";
-import WindowControls from "./components/WindowControls";
 import {
   EventsOn,
   GetAuthStatus,

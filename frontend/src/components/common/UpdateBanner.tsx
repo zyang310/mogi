@@ -1,4 +1,4 @@
-import { OpenReleasePage, models } from "../lib/wailsBridge";
+import { OpenReleasePage, models } from "../../lib/wailsBridge";
 import "./UpdateBanner.css";
 
 interface UpdateBannerProps {

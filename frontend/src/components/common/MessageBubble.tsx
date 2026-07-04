@@ -1,4 +1,4 @@
-import { cleanForDisplay } from "../lib/markdown";
+import { cleanForDisplay } from "../../lib/markdown";
 import "./MessageBubble.css";
 
 interface Props {

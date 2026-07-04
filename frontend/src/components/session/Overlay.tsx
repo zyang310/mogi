@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { cleanForDisplay } from "../lib/markdown";
+import { cleanForDisplay } from "../../lib/markdown";
 import "./Overlay.css";
 
 interface Message {

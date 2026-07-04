@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ListVoices, PreviewVoice, models } from "../lib/wailsBridge";
-import { useAudioPlayer } from "../lib/useAudioPlayer";
+import { ListVoices, PreviewVoice, models } from "../../lib/wailsBridge";
+import { useAudioPlayer } from "../../lib/useAudioPlayer";
 import "./VoicePicker.css";
 
 interface Props {

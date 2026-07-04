@@ -12,8 +12,8 @@ import {
   UpdatePreferences,
   models,
   hotkey,
-} from "../lib/wailsBridge";
-import { comboFromKeyboardEvent, bareModifierFromCode, prettyHotkey } from "../lib/hotkey";
+} from "../../lib/wailsBridge";
+import { comboFromKeyboardEvent, bareModifierFromCode, prettyHotkey } from "../../lib/hotkey";
 import ModelPicker from "./ModelPicker";
 import VoicePicker from "./VoicePicker";
 import "./Settings.css";

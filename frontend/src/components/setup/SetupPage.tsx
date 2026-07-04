@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { SetAPIKey, GetAuthStatus, models } from "../lib/wailsBridge";
+import { SetAPIKey, GetAuthStatus, models } from "../../lib/wailsBridge";
 import "./SetupPage.css";
 
 interface Props {

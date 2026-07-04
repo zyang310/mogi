@@ -1,4 +1,4 @@
-import { models } from "../lib/wailsBridge";
+import { models } from "../../lib/wailsBridge";
 import RadarChart from "./RadarChart";
 import "./Debrief.css";
 

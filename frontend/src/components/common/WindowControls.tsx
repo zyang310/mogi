@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MinimiseWindow, ToggleMaximiseWindow, QuitApp } from "../lib/wailsBridge";
+import { MinimiseWindow, ToggleMaximiseWindow, QuitApp } from "../../lib/wailsBridge";
 import "./WindowControls.css";
 
 // WindowControls draws minimise / maximise / quit buttons for the frameless

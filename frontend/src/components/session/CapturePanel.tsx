@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { GetLatestScreenshot, models } from "../lib/wailsBridge";
+import { GetLatestScreenshot, models } from "../../lib/wailsBridge";
 import "./CapturePanel.css";
 
 interface Props {

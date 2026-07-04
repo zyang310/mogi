@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import MessageBubble from "./MessageBubble";
+import MessageBubble from "../common/MessageBubble";
 import "./Chat.css";
 
 interface Message {
