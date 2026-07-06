@@ -4,30 +4,50 @@
 
 ## Architecture diagram
 
+The backend is a **3-layer architecture**: a thin Wails binding facade, a service layer holding all business logic, and a data/infra layer (SQLite store + external API clients). The React frontend is the UI layer above them.
+
 ```
-┌───────────────────────────────────────────────────────┐
-│  Wails Desktop App (single binary)                    │
-│                                                        │
-│  ┌──────────────────────┐   ┌──────────────────────┐  │
-│  │   Go Backend          │   │  React/TS Frontend   │  │
-│  │                       │   │                      │  │
-│  │  - Screen capture     │◄──┤  - Chat UI           │  │
-│  │  - OpenRouter API     │──►│  - Capture preview   │  │
-│  │  - ElevenLabs (Ph.2)  │   │  - Floating overlay  │  │
-│  │  - SQLite store       │   │  - Settings / setup  │  │
-│  │  - Window / overlay   │   │  - Mic record (Ph.2) │  │
-│  └──────────┬────────────┘   └──────────────────────┘  │
-│             │                         │                 │
-│             ▼                         ▼                 │
-│        OS native APIs          OS native webview        │
-└───────────────────────────────────────────────────────┘
-              │
-              ├──► OpenRouter API ──► Claude / GPT / Gemini (vision)
-              │
-              └──► ElevenLabs API ──► TTS (Flash v2.5) / STT (Scribe v2)   [built, non-streaming]
+┌────────────────────────────────────────────────────────────────────────┐
+│  Wails Desktop App (single binary)                                     │
+│                                                                        │
+│  React/TS Frontend ──── window.go.main.App.* ────►  Binding facade     │
+│  (UI + mic record/play;                             (package main)     │
+│   lib/wailsBridge.ts)   ◄──── Wails events ────     app.go: wiring +   │
+│                              (ptt:down)             1-line delegation  │
+│                                                     window.go: overlay │
+│                                                     + wails runtime    │
+│                                                          │             │
+│                     SERVICE LAYER (internal/service)     ▼             │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │ Interview            History          Voice         Settings     │ │
+│  │ session state+mutex  debrief cache    STT/TTS       keys, prefs  │ │
+│  │ send loop, company   policy, delete   resolution +  → capturer / │ │
+│  │ start, meta extract  guard            fallbacks     hotkey sync  │ │
+│  │                 Providers registry (live API clients, RWMutex)   │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│           │                    │                     │                 │
+│           ▼ data               ▼ external clients    ▼ local infra     │
+│     internal/store       internal/ai (OpenRouter)   internal/capture  │
+│     (SQLite: sessions,   internal/voice (11Labs)    internal/hotkey   │
+│      messages, prefs,    internal/googletts         internal/problems │
+│      API keys)           internal/updater           (embedded CSV)    │
+└────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ├──► OpenRouter API (vision LLMs)
+                                  ├──► ElevenLabs API (Scribe STT / Flash TTS)
+                                  ├──► Google Cloud (TTS + STT)
+                                  └──► GitHub Releases (update check)
 ```
 
-All external API calls are centralized in the Go backend. The frontend handles UI rendering only (and, in Phase 2, mic recording + audio playback). API keys and tokens never touch the frontend layer.
+All external API calls are centralized in the Go backend. The frontend handles UI rendering only (plus mic recording + audio playback). API keys and tokens never touch the frontend layer.
+
+### Backend layering (why 3 layers)
+
+- **Binding facade (`package main`)** — `App` is the single struct bound to Wails; its ~39 exported methods are the frozen TypeScript surface. Bodies are 1–3 line delegations, so `frontend/wailsjs` never churns when logic changes. `app.go` holds the struct, `NewApp` wiring, lifecycle hooks, and delegations; `window.go` is deliberately **the only file in `package main` that imports the Wails runtime** (overlay geometry, hide-for-snapshot, open-in-browser).
+- **Service layer (`internal/service`)** — one file per concern: `Interview` (active-session state + mutex, the send loop, Company Practice starts, post-session meta extraction), `History` (transcript reads, delete guard, the debrief cache-then-generate policy), `Voice` (STT/TTS provider resolution with cross-fallbacks, audio base64 handling), `Settings` (keys + preferences, including propagating pref changes into the running capturer and hotkey). The `Providers` registry (RWMutex) is the one place that decides which API clients are live; Settings swaps entries on key changes and every service fetches at call time.
+- **Data / infra layer** — `internal/store` (SQLite, pure CRUD) plus the client packages (`ai`, `voice`, `googletts`) and local infra (`capture`, `hotkey`, `problems`, `updater`). None of these know the layers above exist.
+
+Services consume their dependencies through **narrow, consumer-defined interfaces** (`InterviewStore`, `HistoryStore`, `VoiceStore`, `SettingsStore`, `AI`, `TTS`/`STT`/`Speech`, `Screen`, `HotkeyApplier`) — `*store.DB` and the concrete clients satisfy them implicitly, and each interface documents exactly which data a feature touches. That buys unit tests with in-memory fakes (no SQLite file, no OS keyboard hook, no network — see `internal/service/*_test.go`) and made two latent races fixable in passing: client-pointer swaps are now mutex-guarded in the registry, and the active session is guarded by `Interview.mu` (released across the AI network call so a slow completion never blocks ending a session). The accepted trade-off: a screen of delegation boilerplate in the facade, paid once, in exchange for a stable binding surface and business logic that can be tested and changed without touching Wails.
 
 ### Frontend structure (feature folders)
 
@@ -88,7 +108,7 @@ The session/message **write** path (`CreateSession` / `AddMessage` / `EndSession
 
 ## Key Go bindings (exposed to frontend)
 
-These `app.go` methods are callable from TypeScript as async functions via `lib/wailsBridge.ts`. Wails auto-generates the TS types from the Go structs. After adding/changing one, run `wails generate module` and export it from the bridge.
+These bound methods are callable from TypeScript as async functions via `lib/wailsBridge.ts`. Wails auto-generates the TS types from the Go structs. The bodies are thin delegations into `internal/service` (see *Backend layering* above) — the signatures below are the frozen contract, so refactoring service internals never regenerates `wailsjs`. After adding/changing a **signature**, run `wails generate module` and export it from the bridge.
 
 ```go
 // Auth / keys   (OAuth PKCE is planned — Phase 4)
@@ -138,14 +158,16 @@ func (a *App) UpdatePreferences(prefs models.Preferences) error
 func (a *App) ListAvailableModels() ([]models.Model, error)  // OpenRouter catalog for the picker (cached ~1h)
 
 // Voice — STT and TTS each resolve a provider (Google or ElevenLabs) via the
-// sttProvider/ttsProvider interfaces (non-streaming v1; all processing in Go, frontend only records/plays audio)
+// service layer's TTS/STT interfaces (non-streaming v1; all processing in Go,
+// frontend only records/plays audio)
 func (a *App) TranscribeAudio(audioBase64, mimeType string) (string, error) // active STT: Scribe if EL key set, else Google
 func (a *App) SynthesizeSpeech(text string) (string, error)                 // active TTS provider → base64 MP3
 func (a *App) ListVoices() ([]models.Voice, error)                          // active provider's voice catalog
 func (a *App) PreviewVoice(voiceID string) (string, error)                  // synthesize a sample (providers w/o preview URLs)
 // Saving a voice needs no binding — VoicePicker writes Preferences.VoiceID /
-// GoogleVoiceID (and TTSProvider) via UpdatePreferences. activeTTS() in app.go
-// picks the provider+voice, falling back to whichever key is configured.
+// GoogleVoiceID (and TTSProvider) via UpdatePreferences. service.Voice's
+// activeTTS() picks the provider+voice, falling back to whichever key is
+// configured.
 
 // Push-to-talk (global hotkey) — a backend keyboard hook (internal/hotkey via
 // robotn/gohook) emits a "ptt:down" Wails event per press; the frontend toggles
@@ -209,7 +231,7 @@ Content-Type: multipart/form-data
 
 ## Google Cloud reference (alternate provider, default for TTS)
 
-`internal/googletts` mirrors `internal/voice`'s surface so the two are interchangeable behind app.go's `ttsProvider`/`sttProvider` interfaces. Google uses plain API-key auth (`?key=`), so it reuses the existing key-storage pattern.
+`internal/googletts` mirrors `internal/voice`'s surface so the two are interchangeable behind the service layer's `TTS`/`STT` interfaces (`service.Speech` = both). Google uses plain API-key auth (`?key=`), so it reuses the existing key-storage pattern.
 
 - **Synthesize:** `POST https://texttospeech.googleapis.com/v1/text:synthesize?key=KEY` with `{ "input": { "text" }, "voice": { "languageCode": <derived from voice name>, "name": <voiceID> }, "audioConfig": { "audioEncoding": "MP3" } }`. Response is JSON `{ "audioContent": "<base64 mp3>" }` — decoded to raw bytes so it matches ElevenLabs' contract.
 - **Voices:** `GET .../v1/voices?key=KEY`, cached ~1h. Filtered to English locales and the high-quality families (Neural2, Chirp3-HD, WaveNet, Studio) and sorted. **No preview URLs** — `Voice.PreviewURL` is empty and the picker uses `PreviewVoice` to synthesize a sample on demand.
