@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
-	"regexp"
 	"strings"
 	"time"
 
@@ -37,6 +35,7 @@ type App struct {
 	db        *store.DB
 	capturer  *capture.Capturer
 	providers *service.Providers // live API clients (OpenRouter + voice), swapped on key changes
+	voice     *service.Voice     // speech service: STT/TTS resolution + audio conversion
 	hotkey    *hotkey.Listener   // global push-to-talk keyboard hook
 	active    *activeSession
 }
@@ -49,11 +48,13 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("app: open database: %w", err)
 	}
 
+	providers := service.NewProviders()
 	app := &App{
 		db:        db,
 		capturer:  capture.NewCapturer(),
 		hotkey:    hotkey.New(),
-		providers: service.NewProviders(),
+		providers: providers,
+		voice:     service.NewVoice(db, providers),
 	}
 
 	// Restore each provider's client from its persisted API key (if any).
@@ -707,175 +708,35 @@ func (a *App) OpenReleasePage(url string) error {
 }
 
 // ---------------------------------------------------------------------------
-// Voice (ElevenLabs STT + ElevenLabs/Google TTS)
+// Voice (delegated to the service layer)
 // ---------------------------------------------------------------------------
-
-// defaultVoiceID is ElevenLabs' long-stable "Rachel" premade voice, used as a
-// fallback so spoken replies work before the user picks a voice in Settings.
-const defaultVoiceID = "21m00Tcm4TlvDq8ikWAM"
-
-// defaultGoogleVoiceID is a widely-available, low-cost Neural2 voice used as the
-// Google fallback before the user picks one.
-const defaultGoogleVoiceID = "en-US-Neural2-F"
-
-// previewPhrase is spoken by PreviewVoice when auditioning a voice that has no
-// hosted preview clip (Google) — kept short to minimise synthesis cost.
-const previewPhrase = "Hi, let's get started with the interview."
-
-// ttsProvider is the minimal text-to-speech contract app.go needs. Both
-// *voice.Client (ElevenLabs) and *googletts.Client satisfy it, so the active
-// provider is chosen at call time without branching on concrete types.
-type ttsProvider interface {
-	Synthesize(ctx context.Context, voiceID, text string) ([]byte, error)
-	ListVoices(ctx context.Context) ([]models.Voice, error)
-}
-
-// sttProvider is the minimal speech-to-text contract. Both *voice.Client
-// (ElevenLabs Scribe) and *googletts.Client (Google STT) satisfy it.
-type sttProvider interface {
-	Transcribe(ctx context.Context, audio []byte, mimeType string) (string, error)
-}
-
-// activeSTT returns the speech-to-text provider to use for the mic. It prefers
-// ElevenLabs Scribe when configured (cheaper per minute and it robustly handles
-// the recorder's audio) and falls back to Google. With both keys present this
-// yields the optimal combo: Scribe STT + Google TTS. STT has no user toggle —
-// the Settings toggle is voice-only.
-func (a *App) activeSTT() (sttProvider, error) {
-	if eleven := a.providers.ElevenLabs(); eleven != nil {
-		return eleven, nil
-	}
-	if google := a.providers.Google(); google != nil {
-		return google, nil
-	}
-	return nil, fmt.Errorf("no voice provider configured — add a Google Cloud or ElevenLabs key in Settings")
-}
-
-// activeTTS returns the configured TTS provider and the voice to use for it,
-// based on Preferences.TTSProvider. If the chosen provider has no key, it falls
-// back to the other configured provider so audio still works; if neither is
-// configured it returns an error.
-func (a *App) activeTTS() (ttsProvider, string, error) {
-	prefs, _ := a.db.GetPreferences()
-
-	elevenVoice := prefs.VoiceID
-	if elevenVoice == "" {
-		elevenVoice = defaultVoiceID
-	}
-	googleVoice := prefs.GoogleVoiceID
-	if googleVoice == "" {
-		googleVoice = defaultGoogleVoiceID
-	}
-
-	eleven := a.providers.ElevenLabs()
-	google := a.providers.Google()
-
-	if prefs.TTSProvider == "elevenlabs" {
-		if eleven != nil {
-			return eleven, elevenVoice, nil
-		}
-		if google != nil {
-			return google, googleVoice, nil // fall back so audio still works
-		}
-		return nil, "", fmt.Errorf("ElevenLabs API key not configured — add it in Settings")
-	}
-
-	// Default provider: Google.
-	if google != nil {
-		return google, googleVoice, nil
-	}
-	if eleven != nil {
-		return eleven, elevenVoice, nil // fall back so audio still works
-	}
-	return nil, "", fmt.Errorf("Google API key not configured — add it in Settings")
-}
 
 // TranscribeAudio converts recorded mic audio (base64 WAV, optionally a data URI)
 // into text via the active STT provider (ElevenLabs Scribe if configured, else
-// Google). mimeType labels the upload. The frontend feeds the result into the
-// normal SendMessage loop, so voice and typed input share one path.
+// Google). The frontend feeds the result into the normal SendMessage loop, so
+// voice and typed input share one path.
 func (a *App) TranscribeAudio(audioBase64, mimeType string) (string, error) {
-	provider, err := a.activeSTT()
-	if err != nil {
-		return "", err
-	}
-
-	// Accept either a raw base64 string or a full data URI ("data:audio/...;base64,...").
-	if i := strings.Index(audioBase64, ","); strings.HasPrefix(audioBase64, "data:") && i != -1 {
-		audioBase64 = audioBase64[i+1:]
-	}
-	audio, err := base64.StdEncoding.DecodeString(audioBase64)
-	if err != nil {
-		return "", fmt.Errorf("decode audio: %w", err)
-	}
-
-	text, err := provider.Transcribe(a.ctx, audio, mimeType)
-	if err != nil {
-		return "", err
-	}
-	return stripNonSpeech(text), nil
-}
-
-// nonSpeechTag matches bracketed audio-event annotations like "[background
-// noise]" or "(coughs)" that STT providers emit for non-speech sounds.
-var nonSpeechTag = regexp.MustCompile(`\[[^\]]*\]|\([^)]*\)`)
-
-// stripNonSpeech removes audio-event annotations from a transcript and returns
-// the remaining speech (whitespace-collapsed). A clip with no speech — silence
-// or background noise — transcribes to only such tags, so the result is empty
-// and the frontend's "if (text)" gate drops the turn instead of sending the
-// tags to the LLM as a candidate message.
-func stripNonSpeech(text string) string {
-	cleaned := nonSpeechTag.ReplaceAllString(text, " ")
-	return strings.Join(strings.Fields(cleaned), " ")
+	return a.voice.Transcribe(a.ctx, audioBase64, mimeType)
 }
 
 // SynthesizeSpeech converts interviewer text into spoken audio via the active
-// TTS provider (Google or ElevenLabs), using the voice saved in preferences (or
-// the default). The reply is cleaned of markdown first (ai.SanitizeForSpeech) so
-// the voice doesn't read backticks/asterisks aloud. It returns the MP3 as base64
-// so it crosses the Wails boundary as a string, matching how screenshots are
-// passed; the frontend plays it via the Web Audio API.
+// TTS provider, returned as base64 MP3 for the frontend to play.
 func (a *App) SynthesizeSpeech(text string) (string, error) {
-	provider, voiceID, err := a.activeTTS()
-	if err != nil {
-		return "", err
-	}
-	audio, err := provider.Synthesize(a.ctx, voiceID, ai.SanitizeForSpeech(text))
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(audio), nil
+	return a.voice.Synthesize(a.ctx, text)
 }
 
 // ListVoices returns the active provider's available voices for the Settings
 // picker. Saving a choice needs no binding here — the picker writes the selected
 // id to Preferences (VoiceID or GoogleVoiceID) through UpdatePreferences.
 func (a *App) ListVoices() ([]models.Voice, error) {
-	provider, _, err := a.activeTTS()
-	if err != nil {
-		return nil, err
-	}
-	return provider.ListVoices(a.ctx)
+	return a.voice.Voices(a.ctx)
 }
 
-// PreviewVoice synthesizes a short fixed phrase with the given voice via the
-// active provider and returns it as base64 MP3. It backs the picker's preview
-// button for providers without hosted preview clips (Google). An empty voiceID
-// falls back to the active provider's default.
+// PreviewVoice synthesizes a short sample with the given voice (or the active
+// provider's default) and returns it as base64 MP3, for the picker's preview
+// button.
 func (a *App) PreviewVoice(voiceID string) (string, error) {
-	provider, fallback, err := a.activeTTS()
-	if err != nil {
-		return "", err
-	}
-	if voiceID == "" {
-		voiceID = fallback
-	}
-	audio, err := provider.Synthesize(a.ctx, voiceID, previewPhrase)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(audio), nil
+	return a.voice.Preview(a.ctx, voiceID)
 }
 
 // ---------------------------------------------------------------------------
