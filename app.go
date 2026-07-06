@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"ai-interviewer/internal/ai"
 	"ai-interviewer/internal/capture"
 	"ai-interviewer/internal/hotkey"
 	"ai-interviewer/internal/models"
@@ -17,16 +16,8 @@ import (
 	"ai-interviewer/internal/store"
 	"ai-interviewer/internal/updater"
 
-	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
-
-// activeSession holds the in-memory state for a running interview.
-// Not exported — lives only in the Go process while a session is active.
-type activeSession struct {
-	session models.Session
-	history []ai.ChatMessage
-}
 
 // App is the main application struct. Its exported methods are bound to the
 // frontend via Wails and callable as async TypeScript functions.
@@ -35,9 +26,9 @@ type App struct {
 	db        *store.DB
 	capturer  *capture.Capturer
 	providers *service.Providers // live API clients (OpenRouter + voice), swapped on key changes
+	interview *service.Interview // live-session service: session state, send loop, company starts
 	voice     *service.Voice     // speech service: STT/TTS resolution + audio conversion
 	hotkey    *hotkey.Listener   // global push-to-talk keyboard hook
-	active    *activeSession
 }
 
 // NewApp initialises the application: opens the database, creates the screen
@@ -48,12 +39,14 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("app: open database: %w", err)
 	}
 
+	capturer := capture.NewCapturer()
 	providers := service.NewProviders()
 	app := &App{
 		db:        db,
-		capturer:  capture.NewCapturer(),
+		capturer:  capturer,
 		hotkey:    hotkey.New(),
 		providers: providers,
+		interview: service.NewInterview(db, providers, capturer),
 		voice:     service.NewVoice(db, providers),
 	}
 
@@ -154,208 +147,24 @@ func (a *App) GetAuthStatus() models.AuthStatus {
 // Interview session
 // ---------------------------------------------------------------------------
 
-// StartSession creates a new screen-driven interview session, initialises the
-// conversation history with the system prompt, and starts screen capture. There
-// is no problem to select — the AI reads the task from the captured screen.
+// StartSession creates a new screen-driven interview session and starts screen
+// capture. There is no problem to select — the AI reads the task from the
+// captured screen.
 func (a *App) StartSession(model string) (models.Session, error) {
-	if a.active != nil {
-		return models.Session{}, fmt.Errorf("a session is already active — end it first")
-	}
-
-	prefs, _ := a.db.GetPreferences()
-	if model == "" {
-		model = prefs.Model
-	}
-
-	id := uuid.New().String()
-	// problem_id is unused in the screen-driven flow; "" satisfies NOT NULL.
-	session, err := a.db.CreateSession(id, "", model)
-	if err != nil {
-		return models.Session{}, err
-	}
-
-	a.active = &activeSession{
-		session: session,
-		history: []ai.ChatMessage{
-			{Role: "system", Content: ai.BuildSystemPrompt()},
-		},
-	}
-
-	// Apply the saved region, then auto-start screen capture.
-	a.capturer.SetRegion(prefs.CaptureDisplay, prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH)
-	a.capturer.Start(a.ctx, prefs.CaptureIntervalMs)
-
-	return session, nil
+	return a.interview.Start(a.ctx, model)
 }
 
-// EndSession stops the current interview and persists the end timestamp. It also
-// kicks off best-effort background extraction of a problem title/difficulty for
-// the history list (see extractSessionMeta).
+// EndSession stops the current interview, persists the end timestamp, and
+// kicks off best-effort background labeling for the history list.
 func (a *App) EndSession(sessionID string) error {
-	a.capturer.Stop()
-
-	// Grab the final frame now, synchronously. Latest() survives Stop(), but a
-	// later StartSession would overwrite it — so capture the reference here before
-	// returning and hand it to the background extraction.
-	finalShot := a.capturer.Latest()
-
-	if err := a.db.EndSession(sessionID); err != nil {
-		return err
-	}
-
-	// Capture the session's model before clearing in-memory state — it's needed
-	// for the extraction call below and isn't otherwise recoverable here.
-	model := ""
-	if a.active != nil {
-		model = a.active.session.Model
-	}
-	a.active = nil
-
-	// Label the session and snapshot its final code in the background so ending
-	// stays instant. Snapshot the client here so the goroutine shares no mutable
-	// state — a key deleted mid-extraction just finishes on the old client.
-	if aiClient := a.providers.AI(); aiClient != nil {
-		go a.extractSessionMeta(aiClient, sessionID, model, finalShot)
-	}
-	return nil
+	return a.interview.End(sessionID)
 }
 
-// extractSessionMeta asks the AI for a short problem title, difficulty, and a text
-// snapshot of the candidate's final code (read from the final screenshot) for a
-// finished session, and persists them for the history list and later debrief.
-// Best-effort: every failure is logged and swallowed so it never affects the
-// interview. Runs in its own goroutine with a fresh context (the request context
-// may already be done).
-func (a *App) extractSessionMeta(aiClient service.AI, sessionID, model, screenshot string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if model == "" {
-		// EndSession had no in-memory session; fall back to the default model.
-		if prefs, err := a.db.GetPreferences(); err == nil {
-			model = prefs.Model
-		}
-		if model == "" {
-			return
-		}
-	}
-
-	msgs, err := a.db.GetMessages(sessionID)
-	if err != nil {
-		log.Printf("history: load transcript for labeling: %v", err)
-		return
-	}
-	if len(msgs) < 2 {
-		return // too short to label meaningfully
-	}
-
-	meta, err := aiClient.ExtractSessionMeta(ctx, model, buildTranscript(msgs), screenshot)
-	if err != nil {
-		log.Printf("history: extract session meta: %v", err)
-		return
-	}
-
-	// Company sessions seed the title/difficulty at start from the known problem,
-	// so keep any non-empty existing values and let the AI only fill what's
-	// missing. The final-code snapshot is always taken from this end-of-session
-	// call. Default (screen-driven) sessions have no seeded values, so this leaves
-	// their behaviour unchanged.
-	title, difficulty := meta.Title, meta.Difficulty
-	if existing, err := a.db.GetSession(sessionID); err == nil {
-		if existing.ProblemTitle != "" {
-			title = existing.ProblemTitle
-		}
-		if existing.Difficulty != "" {
-			difficulty = existing.Difficulty
-		}
-	}
-	if title == "" && difficulty == "" && meta.Code == "" {
-		return // nothing useful to store
-	}
-	if err := a.db.UpdateSessionMeta(sessionID, title, difficulty, meta.Code); err != nil {
-		log.Printf("history: persist session meta: %v", err)
-	}
-}
-
-// buildTranscript renders stored messages as a plain "Speaker: text" transcript
-// for problem-metadata extraction.
-func buildTranscript(msgs []models.Message) string {
-	var b strings.Builder
-	for _, m := range msgs {
-		speaker := "Candidate"
-		if m.Role == "assistant" {
-			speaker = "Interviewer"
-		}
-		b.WriteString(speaker)
-		b.WriteString(": ")
-		b.WriteString(m.Content)
-		b.WriteString("\n")
-	}
-	return b.String()
-}
-
-// SendMessage is the core interview loop. It captures a screenshot, sends the
-// user's text plus the screenshot to OpenRouter, persists both turns, and
-// returns the interviewer's response.
+// SendMessage is the core interview loop: the user's text plus the latest
+// screenshot go to the AI, both turns are persisted, and the interviewer's
+// reply is returned.
 func (a *App) SendMessage(text string) (string, error) {
-	if a.active == nil {
-		return "", fmt.Errorf("no active session — start an interview first")
-	}
-	aiClient := a.providers.AI()
-	if aiClient == nil {
-		return "", fmt.Errorf("OpenRouter API key not configured — add it in Settings")
-	}
-
-	// Backend enforcement of the session time limit (the frontend also enforces
-	// this, so this is a backstop for edge cases like clock skew).
-	prefs, _ := a.db.GetPreferences()
-	if prefs.SessionLimitMinutes > 0 {
-		if time.Since(a.active.session.StartedAt) >= time.Duration(prefs.SessionLimitMinutes)*time.Minute {
-			return "", fmt.Errorf("session time limit reached — end the interview and start a new one")
-		}
-	}
-
-	// 1. Grab the latest screenshot (may be empty on first call).
-	screenshot := a.capturer.Latest()
-
-	// 2. Build and record the user message.
-	userMsg := ai.BuildUserMessage(text, screenshot)
-	a.active.history = append(a.active.history, userMsg)
-
-	now := time.Now().UTC()
-	if err := a.db.AddMessage(models.Message{
-		ID:        uuid.New().String(),
-		SessionID: a.active.session.ID,
-		Role:      "user",
-		Content:   text,
-		HasImage:  screenshot != "",
-		CreatedAt: now,
-	}); err != nil {
-		return "", fmt.Errorf("save user message: %w", err)
-	}
-
-	// 3. Call OpenRouter.
-	response, err := aiClient.Complete(a.ctx, a.active.session.Model, a.active.history)
-	if err != nil {
-		return "", fmt.Errorf("AI request failed: %w", err)
-	}
-
-	// 4. Record the assistant message.
-	assistantMsg := ai.ChatMessage{Role: "assistant", Content: response}
-	a.active.history = append(a.active.history, assistantMsg)
-
-	if err := a.db.AddMessage(models.Message{
-		ID:        uuid.New().String(),
-		SessionID: a.active.session.ID,
-		Role:      "assistant",
-		Content:   response,
-		HasImage:  false,
-		CreatedAt: time.Now().UTC(),
-	}); err != nil {
-		return "", fmt.Errorf("save assistant message: %w", err)
-	}
-
-	return response, nil
+	return a.interview.Send(a.ctx, text)
 }
 
 // ---------------------------------------------------------------------------
@@ -379,100 +188,14 @@ func (a *App) ListCompanyProblems(slug string) ([]models.Problem, error) {
 // candidate in character (returned as Opening) and the normal capture + Socratic
 // loop takes over, flavoured by the company's style profile.
 func (a *App) StartCompanySession(slug string, problem models.Problem) (models.CompanySessionStart, error) {
-	return a.startCompanyInterview(slug, []models.Problem{problem})
+	return a.interview.StartCompany(a.ctx, slug, problem)
 }
 
 // StartMockInterview starts a two-problem mock interview for a company. The pair
 // is drawn server-side (easier Q1, harder Q2) so no picker UI ever sees the
 // questions before the session begins — the surprise is the practice.
 func (a *App) StartMockInterview(slug string) (models.CompanySessionStart, error) {
-	pair, err := problems.MockPair(slug)
-	if err != nil {
-		return models.CompanySessionStart{}, err
-	}
-	return a.startCompanyInterview(slug, pair[:])
-}
-
-// startCompanyInterview is the shared body behind StartCompanySession and
-// StartMockInterview. It mirrors StartSession (guard, create the row, start
-// capture) but: seeds the company system prompt; persists the deterministic
-// opener to the transcript (so history + debrief include it) WITHOUT adding it to
-// model history — the system prompt carries the assignment and history must stay
-// system → user → … for models that reject a leading assistant turn; and seeds
-// the session's title/difficulty from the known problem(s).
-func (a *App) startCompanyInterview(slug string, probs []models.Problem) (models.CompanySessionStart, error) {
-	if a.active != nil {
-		return models.CompanySessionStart{}, fmt.Errorf("a session is already active — end it first")
-	}
-	if len(probs) == 0 {
-		return models.CompanySessionStart{}, fmt.Errorf("no problem to assign")
-	}
-
-	companyName := problems.DisplayName(slug)
-	profile := ai.CompanyProfile(slug)
-
-	// Choose the opener and the seeded history label from the problem count:
-	// one problem is a single-question session, two is a mock interview.
-	opening := ai.CompanyOpening(companyName, probs[0])
-	metaTitle, metaDifficulty := probs[0].Title, probs[0].Difficulty
-	mode := "single"
-	if len(probs) >= 2 {
-		opening = ai.MockOpening(companyName, probs[0])
-		metaTitle, metaDifficulty = fmt.Sprintf("Mock: %s + %s", probs[0].Title, probs[1].Title), ""
-		mode = "mock"
-	}
-
-	prefs, _ := a.db.GetPreferences()
-	model := prefs.Model
-
-	// problem_id (unused in the screen-driven flow) carries the company slug here
-	// as a harmless breadcrumb; the label lives in problem_title/difficulty.
-	id := uuid.New().String()
-	session, err := a.db.CreateSession(id, slug, model)
-	if err != nil {
-		return models.CompanySessionStart{}, err
-	}
-
-	a.active = &activeSession{
-		session: session,
-		history: []ai.ChatMessage{
-			{Role: "system", Content: ai.BuildCompanySystemPrompt(companyName, profile, probs)},
-		},
-	}
-
-	// Persist the opener to the transcript only (not model history).
-	if err := a.db.AddMessage(models.Message{
-		ID:        uuid.New().String(),
-		SessionID: id,
-		Role:      "assistant",
-		Content:   opening,
-		HasImage:  false,
-		CreatedAt: time.Now().UTC(),
-	}); err != nil {
-		log.Printf("company: persist opener: %v", err)
-	}
-
-	// Seed the session label so history shows it without an AI guess;
-	// extractSessionMeta later preserves these and only fills the final code.
-	if err := a.db.UpdateSessionMeta(id, metaTitle, metaDifficulty, ""); err != nil {
-		log.Printf("company: seed session meta: %v", err)
-	}
-
-	// Tag the session with the company + mode so history can badge it.
-	if err := a.db.SetSessionCompany(id, companyName, mode); err != nil {
-		log.Printf("company: tag session company: %v", err)
-	}
-
-	// Apply the saved region, then auto-start screen capture (same as StartSession).
-	a.capturer.SetRegion(prefs.CaptureDisplay, prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH)
-	a.capturer.Start(a.ctx, prefs.CaptureIntervalMs)
-
-	return models.CompanySessionStart{
-		Session:  session,
-		Company:  companyName,
-		Opening:  opening,
-		Problems: probs,
-	}, nil
+	return a.interview.StartMock(a.ctx, slug)
 }
 
 // OpenURL opens a URL in the user's real browser (not the frameless webview), so
@@ -568,10 +291,29 @@ func (a *App) GetSessionTranscript(id string) ([]models.Message, error) {
 // DeleteSession permanently removes a past session and its transcript. The active
 // session can't be deleted — it must be ended first.
 func (a *App) DeleteSession(id string) error {
-	if a.active != nil && a.active.session.ID == id {
+	if active := a.interview.ActiveID(); active != "" && active == id {
 		return fmt.Errorf("cannot delete the active session — end it first")
 	}
 	return a.db.DeleteSession(id)
+}
+
+// buildTranscript renders stored messages as a plain "Speaker: text" transcript
+// for debrief generation. Temporary duplicate of the service-layer copy — it
+// moves out of app.go entirely when GetDebrief is extracted to the history
+// service.
+func buildTranscript(msgs []models.Message) string {
+	var b strings.Builder
+	for _, m := range msgs {
+		speaker := "Candidate"
+		if m.Role == "assistant" {
+			speaker = "Interviewer"
+		}
+		b.WriteString(speaker)
+		b.WriteString(": ")
+		b.WriteString(m.Content)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 // GetDebrief returns the post-interview feedback scorecard for a finished session.
