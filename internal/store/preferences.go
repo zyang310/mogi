@@ -67,7 +67,7 @@ func (db *DB) DeleteAPIKey(provider string) error {
 func (db *DB) GetPreferences() (models.Preferences, error) {
 	p := models.Preferences{
 		CaptureIntervalMs:   3000,
-		Model:               "anthropic/claude-sonnet-4",
+		Model:               "google/gemini-2.5-flash",
 		TTSProvider:         "google",
 		VoiceSpeed:          1.0,
 		SessionLimitMinutes: 30,

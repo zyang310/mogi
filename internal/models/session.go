@@ -75,7 +75,7 @@ type AuthStatus struct {
 // Preferences holds user-configurable settings persisted in SQLite.
 type Preferences struct {
 	CaptureIntervalMs int     `json:"captureIntervalMs"` // default 3000
-	Model             string  `json:"model"`             // default "anthropic/claude-sonnet-4"
+	Model             string  `json:"model"`             // default "google/gemini-2.5-flash"
 	VoiceSpeed        float64 `json:"voiceSpeed"`        // TTS playback rate, default 1.0 (range ~0.5–2.0)
 
 	// Text-to-speech provider + the voice selected for each. Voices are
