@@ -47,6 +47,7 @@
 
 .hub-headline {
   margin: 0;
+  font-family: var(--font-display);
   font-size: 48px;
   line-height: 1.2;
   letter-spacing: -0.02em;
@@ -207,13 +208,13 @@
   justify-content: center;
   gap: 12px;
   overflow: hidden;
-  box-shadow: 0 0 40px rgba(77, 142, 255, 0.15);
+  box-shadow: 0 0 40px color-mix(in srgb, var(--primary-container) 15%, transparent);
   transition: background-color 0.3s, box-shadow 0.3s, transform 0.1s;
 }
 
 .hub-start-btn:hover:not(:disabled) {
   background: var(--primary-container-hover);
-  box-shadow: 0 0 60px rgba(77, 142, 255, 0.25);
+  box-shadow: 0 0 60px color-mix(in srgb, var(--primary-container) 25%, transparent);
 }
 
 .hub-start-btn:active:not(:disabled) {

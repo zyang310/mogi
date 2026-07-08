@@ -52,21 +52,21 @@
 }
 
 .debrief-verdict.positive {
-  background-color: rgba(78, 222, 163, 0.14);
+  background-color: color-mix(in srgb, var(--secondary) 14%, transparent);
   color: var(--secondary);
-  border-color: rgba(78, 222, 163, 0.3);
+  border-color: color-mix(in srgb, var(--secondary) 30%, transparent);
 }
 
 .debrief-verdict.lean {
-  background-color: rgba(173, 198, 255, 0.14);
+  background-color: color-mix(in srgb, var(--primary) 14%, transparent);
   color: var(--primary);
-  border-color: rgba(173, 198, 255, 0.3);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .debrief-verdict.negative {
-  background-color: rgba(255, 180, 171, 0.14);
+  background-color: color-mix(in srgb, var(--error) 14%, transparent);
   color: var(--error);
-  border-color: rgba(255, 180, 171, 0.3);
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 .debrief-verdict.neutral {
@@ -188,7 +188,7 @@
 
 .debrief-seg.filled {
   background-color: var(--primary);
-  box-shadow: 0 0 8px rgba(173, 198, 255, 0.4);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 40%, transparent);
 }
 
 /* ── Radar panel ────────────────────────────────────────────────────────────── */

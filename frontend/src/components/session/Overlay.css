@@ -19,11 +19,14 @@
   gap: 12px;
   padding: 0 8px;
   border-radius: 9999px;
-  background: rgba(15, 17, 21, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--level-2-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--level-2-border);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  /* Tight, subtle shadow. A big soft shadow bleeds into the transparent
+     overlay window's alpha, which macOS then re-traces as a wavy outline —
+     keeping it small lets the native window shadow trace a clean edge. */
+  box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.3);
 }
 
 .overlay-grab {
@@ -186,8 +189,8 @@
   margin-left: 6px;
   padding: 7px 16px;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 180, 171, 0.2);
-  background: rgba(255, 180, 171, 0.1);
+  border: 1px solid color-mix(in srgb, var(--error) 20%, transparent);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
   color: var(--error);
   font-family: var(--font-body);
   font-size: 12px;
@@ -235,11 +238,11 @@
   max-height: 300px;
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(15, 17, 21, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--outline-variant);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.3);
 }
 
 .overlay-history-header {

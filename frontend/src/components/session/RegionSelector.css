@@ -1,6 +1,7 @@
 .region-overlay {
   position: fixed;
   inset: 0;
+  /* Modal scrim — a black dim behind the dialog reads correctly in both themes. */
   background-color: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
@@ -9,8 +10,8 @@
 }
 
 .region-panel {
-  background-color: #1a1d23;
-  border: 1px solid #2e333d;
+  background-color: var(--level-1-bg);
+  border: 1px solid var(--level-1-border);
   border-radius: 12px;
   padding: 20px;
   width: 760px;
@@ -31,14 +32,14 @@
 .region-header h2 {
   font-size: 18px;
   font-weight: 700;
-  color: #e2e2e8;
+  color: var(--on-surface);
   margin: 0;
 }
 
 .region-close {
   background: none;
   border: none;
-  color: #8c909f;
+  color: var(--outline);
   font-size: 24px;
   cursor: pointer;
   padding: 0 4px;
@@ -46,7 +47,7 @@
 }
 
 .region-close:hover {
-  color: #e2e2e8;
+  color: var(--on-surface);
 }
 
 .region-toolbar {
@@ -62,27 +63,27 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #c2c6d6;
+  color: var(--on-surface-variant);
 }
 
 .region-select {
   padding: 6px 10px;
-  border: 1px solid #2e333d;
+  border: 1px solid var(--level-1-border);
   border-radius: 6px;
-  background-color: #0c0e12;
-  color: #e2e2e8;
+  background-color: var(--surface-container-lowest);
+  color: var(--on-surface);
   font-size: 13px;
   font-family: inherit;
   outline: none;
 }
 
 .region-select:focus {
-  border-color: #adc6ff;
+  border-color: var(--primary);
 }
 
 .region-hint {
   font-size: 12px;
-  color: #8c909f;
+  color: var(--outline);
   margin: 0;
 }
 
@@ -93,8 +94,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #050505;
-  border: 1px solid #2e333d;
+  background-color: var(--preview-bg);
+  border: 1px solid var(--level-1-border);
   border-radius: 8px;
   overflow: hidden;
   cursor: crosshair;
@@ -110,21 +111,21 @@
 }
 
 .region-status {
-  color: #8c909f;
+  color: var(--outline);
   font-size: 14px;
   padding: 60px 0;
 }
 
 .region-box {
   position: absolute;
-  border: 2px solid #adc6ff;
-  background-color: rgba(173, 198, 255, 0.18);
+  border: 2px solid var(--primary);
+  background-color: color-mix(in srgb, var(--primary) 18%, transparent);
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
   pointer-events: none;
 }
 
 .region-error {
-  color: #ffb4ab;
+  color: var(--error);
   font-size: 13px;
   margin: 10px 0 0;
 }

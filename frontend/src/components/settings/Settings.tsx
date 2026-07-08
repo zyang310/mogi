@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
   SetAPIKey,
   DeleteAPIKey,
@@ -14,6 +15,7 @@ import {
   hotkey,
 } from "../../lib/wailsBridge";
 import { comboFromKeyboardEvent, bareModifierFromCode, prettyHotkey } from "../../lib/hotkey";
+import type { ThemePref } from "../../lib/theme";
 import ModelPicker from "./ModelPicker";
 import VoicePicker from "./VoicePicker";
 import "./Settings.css";
@@ -25,6 +27,75 @@ const PROVIDER_LABELS: Record<KeyProvider, string> = {
   elevenlabs: "ElevenLabs",
   google: "Google Cloud",
 };
+
+// Per-provider metadata for the API-key cards. The three cards are structurally
+// identical, so we drive them from this list (label, icon tile, input hint,
+// placeholder) and render one <ApiKeyCard> per entry rather than hand-repeating.
+interface KeyCard {
+  id: KeyProvider;
+  icon: string; // Material Symbols name for the icon tile
+  placeholder: string;
+  hint: ReactNode;
+}
+
+const KEY_CARDS: KeyCard[] = [
+  {
+    id: "openrouter",
+    icon: "router",
+    placeholder: "sk-or-...",
+    hint: (
+      <>
+        Get a key at{" "}
+        <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
+          openrouter.ai/keys
+        </a>
+      </>
+    ),
+  },
+  {
+    id: "elevenlabs",
+    icon: "graphic_eq",
+    placeholder: "sk-el-...",
+    hint: (
+      <>
+        Optional — premium spoken interviews.{" "}
+        <a
+          href="https://elevenlabs.io/app/settings/api-keys"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          elevenlabs.io
+        </a>
+      </>
+    ),
+  },
+  {
+    id: "google",
+    icon: "cloud",
+    placeholder: "AIza...",
+    hint: (
+      <>
+        Low-cost spoken interviews. Enable the{" "}
+        <a
+          href="https://console.cloud.google.com/apis/library/texttospeech.googleapis.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Text-to-Speech API
+        </a>{" "}
+        and create a key in{" "}
+        <a
+          href="https://console.cloud.google.com/apis/credentials"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Credentials
+        </a>
+        .
+      </>
+    ),
+  },
+];
 
 // Settings is a full page (not a modal). A left "Configuration" sidebar switches
 // between sections; the right pane renders the active section. Navigation in/out
@@ -61,9 +132,19 @@ interface Props {
   onAuthChange: (status: models.AuthStatus) => void;
   // Bubble persisted preference changes up so the hub stays in sync.
   onPrefsChange?: (prefs: models.Preferences) => void;
+  // Theme lives in App (mirrored to <html> + localStorage), so the control here
+  // reads/writes through props to stay in sync with the pill-nav quick toggle.
+  themePref: ThemePref;
+  onThemeChange: (pref: ThemePref) => void;
 }
 
-export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Props) {
+export default function Settings({
+  authStatus,
+  onAuthChange,
+  onPrefsChange,
+  themePref,
+  onThemeChange,
+}: Props) {
   // Land on API Keys when unconfigured (the most useful next step), else Models.
   const [section, setSection] = useState<Section>(
     authStatus.openRouterConfigured ? "models" : "api-keys"
@@ -315,6 +396,11 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
 
   const activeProvider = resolveProvider(ttsProvider);
   const anyVoiceConfigured = authStatus.googleConfigured || authStatus.elevenLabsConfigured;
+  const configured: Record<KeyProvider, boolean> = {
+    openrouter: authStatus.openRouterConfigured,
+    elevenlabs: authStatus.elevenLabsConfigured,
+    google: authStatus.googleConfigured,
+  };
 
   return (
     <div className="settings-page">
@@ -342,6 +428,27 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
                 <h1>General</h1>
                 <p>Session behavior and timing for your mock interviews.</p>
               </header>
+              <div className="settings-card">
+                <div className="settings-card-head">
+                  <span className="material-symbols-outlined">contrast</span>
+                  <h3 className="settings-card-title">Appearance</h3>
+                </div>
+                <p className="settings-hint">
+                  Color theme for the app. “System” follows your OS light/dark setting.
+                </p>
+                <div className="settings-segmented">
+                  {(["system", "light", "dark"] as ThemePref[]).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      className={`settings-segment${themePref === opt ? " active" : ""}`}
+                      onClick={() => onThemeChange(opt)}
+                    >
+                      {opt === "system" ? "System" : opt === "light" ? "Light" : "Dark"}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="settings-card">
                 <h3 className="settings-card-title">Session time limit</h3>
                 <p className="settings-hint">
@@ -405,157 +512,59 @@ export default function Settings({ authStatus, onAuthChange, onPrefsChange }: Pr
                 <h1>API Keys</h1>
                 <p>Keys are stored locally and never leave this device except in API requests.</p>
               </header>
-              <div className="settings-card">
-                <h3 className="settings-card-title">OpenRouter</h3>
-                <p className="settings-hint">
-                  Get a key at{" "}
-                  <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
-                    openrouter.ai/keys
-                  </a>
-                </p>
-                <div className="settings-status">
-                  Status:{" "}
-                  {authStatus.openRouterConfigured ? (
-                    <span className="status-ok">Configured</span>
-                  ) : (
-                    <span className="status-missing">Not configured</span>
-                  )}
-                  {authStatus.openRouterConfigured && (
-                    <button
-                      className="settings-link-btn settings-remove-btn"
-                      onClick={() => removeKey("openrouter")}
-                      disabled={saving}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div className="settings-field-row">
-                  <input
-                    type="password"
-                    className="settings-input settings-input-grow"
-                    value={openRouterKey}
-                    onChange={(e) => setOpenRouterKey(e.target.value)}
-                    placeholder="sk-or-..."
-                    disabled={saving}
-                    onKeyDown={(e) => e.key === "Enter" && saveKey("openrouter")}
-                  />
-                  <button
-                    className="btn btn-primary settings-field-save"
-                    onClick={() => saveKey("openrouter")}
-                    disabled={!openRouterKey.trim() || saving}
-                  >
-                    {saving ? "Saving…" : "Save"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="settings-card">
-                <h3 className="settings-card-title">ElevenLabs</h3>
-                <p className="settings-hint">
-                  Optional — used for spoken interviews (Phase 2). Get a key at{" "}
-                  <a
-                    href="https://elevenlabs.io/app/settings/api-keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    elevenlabs.io
-                  </a>
-                </p>
-                <div className="settings-status">
-                  Status:{" "}
-                  {authStatus.elevenLabsConfigured ? (
-                    <span className="status-ok">Configured</span>
-                  ) : (
-                    <span className="status-missing">Not configured</span>
-                  )}
-                  {authStatus.elevenLabsConfigured && (
-                    <button
-                      className="settings-link-btn settings-remove-btn"
-                      onClick={() => removeKey("elevenlabs")}
-                      disabled={saving}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div className="settings-field-row">
-                  <input
-                    type="password"
-                    className="settings-input settings-input-grow"
-                    value={elevenLabsKey}
-                    onChange={(e) => setElevenLabsKey(e.target.value)}
-                    placeholder="sk-el-..."
-                    disabled={saving}
-                    onKeyDown={(e) => e.key === "Enter" && saveKey("elevenlabs")}
-                  />
-                  <button
-                    className="btn btn-primary settings-field-save"
-                    onClick={() => saveKey("elevenlabs")}
-                    disabled={!elevenLabsKey.trim() || saving}
-                  >
-                    {saving ? "Saving…" : "Save"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="settings-card">
-                <h3 className="settings-card-title">Google Cloud</h3>
-                <p className="settings-hint">
-                  Low-cost spoken interviews (~10× cheaper than ElevenLabs). Enable the{" "}
-                  <a
-                    href="https://console.cloud.google.com/apis/library/texttospeech.googleapis.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Text-to-Speech API
-                  </a>{" "}
-                  and create an API key in{" "}
-                  <a
-                    href="https://console.cloud.google.com/apis/credentials"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Credentials
-                  </a>
-                  .
-                </p>
-                <div className="settings-status">
-                  Status:{" "}
-                  {authStatus.googleConfigured ? (
-                    <span className="status-ok">Configured</span>
-                  ) : (
-                    <span className="status-missing">Not configured</span>
-                  )}
-                  {authStatus.googleConfigured && (
-                    <button
-                      className="settings-link-btn settings-remove-btn"
-                      onClick={() => removeKey("google")}
-                      disabled={saving}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div className="settings-field-row">
-                  <input
-                    type="password"
-                    className="settings-input settings-input-grow"
-                    value={googleKey}
-                    onChange={(e) => setGoogleKey(e.target.value)}
-                    placeholder="AIza..."
-                    disabled={saving}
-                    onKeyDown={(e) => e.key === "Enter" && saveKey("google")}
-                  />
-                  <button
-                    className="btn btn-primary settings-field-save"
-                    onClick={() => saveKey("google")}
-                    disabled={!googleKey.trim() || saving}
-                  >
-                    {saving ? "Saving…" : "Save"}
-                  </button>
-                </div>
-              </div>
+              {KEY_CARDS.map((card) => {
+                const isSet = configured[card.id];
+                return (
+                  <div className="settings-card apikey-card" key={card.id}>
+                    <div className="apikey-head">
+                      <div className={`apikey-icon${isSet ? "" : " muted"}`}>
+                        <span className="material-symbols-outlined">{card.icon}</span>
+                      </div>
+                      <div className="apikey-meta">
+                        <div className="apikey-name">{PROVIDER_LABELS[card.id]}</div>
+                        <div className="apikey-sub">{card.hint}</div>
+                      </div>
+                      <div className={`apikey-status${isSet ? " is-configured" : ""}`}>
+                        <span className="apikey-status-dot" />
+                        {isSet ? "Configured" : "Not set"}
+                      </div>
+                    </div>
+                    <div className="apikey-field">
+                      <div className="apikey-input-wrap">
+                        <span className="material-symbols-outlined apikey-input-icon">key</span>
+                        <input
+                          type="password"
+                          className="apikey-input"
+                          value={keyInputs[card.id]}
+                          onChange={(e) => keySetters[card.id](e.target.value)}
+                          placeholder={card.placeholder}
+                          disabled={saving}
+                          onKeyDown={(e) => e.key === "Enter" && saveKey(card.id)}
+                        />
+                      </div>
+                      <button
+                        className="btn btn-primary settings-field-save"
+                        onClick={() => saveKey(card.id)}
+                        disabled={!keyInputs[card.id].trim() || saving}
+                      >
+                        {saving ? "Saving…" : "Save"}
+                      </button>
+                      {isSet && (
+                        <button
+                          type="button"
+                          className="apikey-remove"
+                          onClick={() => removeKey(card.id)}
+                          disabled={saving}
+                          title="Remove key"
+                        >
+                          <span className="material-symbols-outlined">delete</span>
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </>
           )}
 

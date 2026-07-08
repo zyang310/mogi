@@ -1,15 +1,15 @@
 /* Update-available banner — mirrors the .app-warning / .app-error banner system
-   in App.css, tinted with the primary (blue) accent. Shown on non-overlay idle
+   in App.css, tinted with the primary accent. Shown on non-overlay idle
    screens when a newer release exists. */
 .update-banner {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 32px;
-  background-color: rgba(173, 198, 255, 0.1); /* var(--primary) #adc6ff @ 10% */
+  background-color: color-mix(in srgb, var(--primary) 10%, transparent);
   color: var(--primary);
   font-size: 13px;
-  border-bottom: 1px solid rgba(173, 198, 255, 0.25);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
 .update-banner-dot {

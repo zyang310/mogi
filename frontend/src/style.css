@@ -4,54 +4,120 @@
   box-sizing: border-box;
 }
 
-/* ── Material Design 3 dark theme tokens (ported from the Hub mockup) ──── */
+/* ── Material Design 3 theme tokens — Indigo-led (light + dark) ──────────────
+   Two runtime-selectable themes sharing one variable vocabulary, so every
+   component inherits the theme with no per-component edits:
+
+     :root                     -> LIGHT (warm "washi paper")  — default
+     :root[data-theme="dark"]  -> DARK  (deep "indigo night")
+
+   The effective theme is written to <html data-theme> on boot (index.html) and
+   on toggle (lib/theme.ts). "system" follows prefers-color-scheme. */
+
+/* ─────────────────────────────  LIGHT  (default)  ───────────────────────── */
 :root {
-  /* Surfaces */
-  --background: #111317;
-  --surface: #111317;
-  --surface-container-lowest: #0c0e12;
-  --surface-container-low: #1a1c20;
-  --surface-container: #1e2024;
-  --surface-container-high: #282a2e;
-  --surface-container-highest: #333539;
-  --surface-bright: #37393e;
+  /* Surfaces — washi-paper neutrals */
+  --background:                 #F6F0E6;
+  --surface:                    #FFFCF6;
+  --surface-container-lowest:   #FFFFFF;
+  --surface-container-low:      #FBF6EC;
+  --surface-container:          #EDE3D6;  /* Washi Paper — source color   */
+  --surface-container-high:     #E4D8C7;
+  --surface-container-highest:  #DBCEBB;
+  --surface-bright:             #FFFDF9;
 
-  /* Elevated component surfaces (mockup .level-1 / .level-2) */
-  --level-1-bg: #1a1d23;
-  --level-1-border: #2e333d;
-  --level-2-bg: rgba(26, 29, 35, 0.8);
-  --level-2-border: rgba(46, 51, 61, 0.5);
+  /* Elevated component surfaces (.level-1 / .level-2) */
+  --level-1-bg:                 #FFFCF6;
+  --level-1-border:             #E2D6C4;
+  --level-2-bg:                 rgba(255, 252, 246, 0.80);
+  --level-2-border:             rgba(199, 186, 166, 0.60);
 
-  /* Near-black inset behind a live capture preview */
-  --preview-bg: #050505;
+  /* Capture-preview inset — a soft paper placeholder in light mode
+     (deliberately recedes; it is NOT a near-black well here) */
+  --preview-bg:                 #EDE4D6;
 
-  /* Content / text */
-  --on-surface: #e2e2e8;
-  --on-surface-variant: #c2c6d6;
-  --outline: #8c909f;
-  --outline-variant: #424754;
+  /* Content / text — Indigo Night used as ink */
+  --on-surface:                 #23264A;
+  --on-surface-variant:         #5B5F7C;
+  --outline:                    #6E7396;
+  --outline-variant:            #C7BAA6;
 
-  /* Primary (blue) */
-  --primary: #adc6ff;
-  --primary-container: #4d8eff;
-  --primary-container-hover: #5b98ff;
-  --on-primary: #002e6a;
-  --on-primary-container: #00285d;
+  /* Primary (Indigo Night leads every CTA) */
+  --primary:                    #2C2F5A;  /* Indigo Night — source color  */
+  --primary-container:          #2C2F5A;
+  --primary-container-hover:    #3A3D6E;
+  --on-primary:                 #EDE3D6;
+  --on-primary-container:       #EDE3D6;
 
-  /* Secondary (green accent) */
-  --secondary: #4edea3;
+  /* Secondary (Matcha Jade — status dot, active nav, "positive") */
+  --secondary:                  #5F7639;
 
   /* Error / warning */
-  --error: #ffb4ab;
-  --error-container: #93000a;
-  --error-container-hover: #b3000c;
-  --on-error-container: #ffdad6;
-  --warning: #fbbf24;
+  --error:                      #C0453B;
+  --error-container:            #F3D6D2;
+  --error-container-hover:      #ECC7C2;
+  --on-error-container:         #5A1E19;
+  --warning:                    #D89A2E;
 
   /* Type */
+  --font-display: "Shippori Mincho", Georgia, "Times New Roman", serif;
   --font-body: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-mono: "JetBrains Mono", "Courier New", monospace;
+}
+
+/* ─────────────────────────────  DARK  (indigo night)  ───────────────────── */
+:root[data-theme="dark"] {
+  /* Surfaces */
+  --background:                 #111330;
+  --surface:                    #111330;
+  --surface-container-lowest:   #0C0E22;
+  --surface-container-low:      #1A1D3A;
+  --surface-container:          #24274C;
+  --surface-container-high:     #2C2F5A;  /* Indigo Night — source color  */
+  --surface-container-highest:  #333764;
+  --surface-bright:             #3A3E6E;
+
+  --level-1-bg:                 #1A1D3A;
+  --level-1-border:             #333764;
+  --level-2-bg:                 rgba(26, 29, 58, 0.80);
+  --level-2-border:             rgba(74, 78, 120, 0.50);
+
+  /* Near-black indigo well behind a live capture preview */
+  --preview-bg:                 #0C0E22;
+
+  /* Content / text — Washi Paper used as light-on-dark text */
+  --on-surface:                 #EDE3D6;
+  --on-surface-variant:         #B4AFC2;
+  --outline:                    #8F8AA0;
+  --outline-variant:            #4A4E78;
+
+  /* Primary — Indigo lifts to a legible periwinkle so it reads on the
+     indigo background. On-primary flips to a near-black indigo. */
+  --primary:                    #8E93E0;
+  --primary-container:          #8E93E0;
+  --primary-container-hover:    #9DA1E8;
+  --on-primary:                 #14162A;
+  --on-primary-container:       #14162A;
+
+  /* Secondary (Matcha Jade, brightened for dark) */
+  --secondary:                  #A0BA76;
+
+  /* Error / warning */
+  --error:                      #FF9086;
+  --error-container:            #7A2C28;
+  --error-container-hover:      #8E332E;
+  --on-error-container:         #FFD9D4;
+  --warning:                    #EDB94A;
+}
+
+/* Smooth cross-fade when the theme flips. Universal (specificity 0) so
+   components with their own `transition` keep theirs; only added when the user
+   hasn't asked for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  *, *::before, *::after {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  }
 }
 
 html, body, #root {

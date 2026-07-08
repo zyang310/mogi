@@ -23,7 +23,7 @@
   stroke: var(--primary);
   stroke-width: 1.2;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 4px rgba(173, 198, 255, 0.5));
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--primary) 50%, transparent));
 }
 
 .radar-dot {

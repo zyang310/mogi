@@ -4,10 +4,25 @@
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Mogi</title>
+    <!-- Resolve the theme before first paint so there's no flash of the wrong
+         palette. 'system' (no stored choice) follows the OS; an explicit
+         light/dark choice from lib/theme.ts overrides. Kept inline + synchronous
+         on purpose — a deferred/module script would run after the first paint. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('mogi-theme'); // 'light' | 'dark' | null(=system)
+          var eff = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', eff);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
     <!-- Material Symbols -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-    <!-- Geist (body / UI) + JetBrains Mono (inputs) -->
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+    <!-- Geist (body / UI) + JetBrains Mono (inputs) + Shippori Mincho (display headlines) -->
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400;500&family=Shippori+Mincho:wght@500;600;700&display=swap" rel="stylesheet"/>
 </head>
 <body>
 <div id="root"></div>

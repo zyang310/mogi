@@ -31,6 +31,15 @@ import {
 import { useVoiceRecorder } from "./lib/useVoiceRecorder";
 import { useAudioPlayer } from "./lib/useAudioPlayer";
 import { useUpdateCheck } from "./lib/useUpdateCheck";
+import {
+  getThemePref,
+  setThemePref,
+  getEffectiveTheme,
+  subscribeSystemTheme,
+  applyTheme,
+  type ThemePref,
+  type Theme,
+} from "./lib/theme";
 import "./App.css";
 
 interface ChatMessage {
@@ -72,6 +81,12 @@ function App() {
   // banner and is cleared when the session ends. null for default Hub sessions.
   const [companySession, setCompanySession] = useState<models.CompanySessionStart | null>(null);
   const [error, setError] = useState("");
+
+  // Theme: preference ('system' follows the OS) is mirrored to <html data-theme>.
+  // The boot script (index.html) applies it before first paint; here we keep it in
+  // sync at runtime and track the effective (resolved) theme for the nav icon.
+  const [themePref, setThemePrefState] = useState<ThemePref>(getThemePref);
+  const [effectiveTheme, setEffectiveTheme] = useState<Theme>(() => getEffectiveTheme());
 
   // Voice: mic recorder + audio player, plus session-level "voice mode" (when on,
   // interviewer replies are spoken). voiceModeRef mirrors the state so async
@@ -144,6 +159,26 @@ function App() {
     })();
     loadPrefs();
   }, []);
+
+  // Apply the theme whenever the preference changes, and — while it's "system" —
+  // follow live OS scheme changes so the nav icon and colors stay correct.
+  useEffect(() => {
+    applyTheme(themePref);
+    setEffectiveTheme(getEffectiveTheme(themePref));
+    return subscribeSystemTheme(() => setEffectiveTheme(getEffectiveTheme("system")));
+  }, [themePref]);
+
+  // Persist + apply a theme choice (the Settings 3-way System/Light/Dark control).
+  function chooseTheme(pref: ThemePref) {
+    setThemePref(pref);
+    setThemePrefState(pref);
+    setEffectiveTheme(getEffectiveTheme(pref));
+  }
+
+  // Quick nav flip — switch to the opposite of what's showing (an explicit override).
+  function flipTheme() {
+    chooseTheme(effectiveTheme === "dark" ? "light" : "dark");
+  }
 
   // Tick the session timer every second while a session is active.
   useEffect(() => {
@@ -455,6 +490,17 @@ function App() {
           <span className="material-symbols-outlined">settings</span>
           <span className="pill-tab-label">Settings</span>
         </button>
+        <span className="pill-nav-sep" />
+        <button
+          className="pill-tab pill-theme-toggle"
+          onClick={flipTheme}
+          title={`Switch to ${effectiveTheme === "dark" ? "light" : "dark"} mode`}
+          aria-label="Toggle light or dark theme"
+        >
+          <span className="material-symbols-outlined">
+            {effectiveTheme === "dark" ? "light_mode" : "dark_mode"}
+          </span>
+        </button>
       </nav>
 
       <div className="app-content">
@@ -493,6 +539,8 @@ function App() {
             authStatus={authStatus}
             onAuthChange={setAuthStatus}
             onPrefsChange={setPrefs}
+            themePref={themePref}
+            onThemeChange={chooseTheme}
           />
         ) : view === "history" ? (
           <History />

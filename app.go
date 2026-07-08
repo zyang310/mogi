@@ -28,6 +28,10 @@ type App struct {
 	history   *service.History   // past-sessions service: list/read/delete + debrief
 	voice     *service.Voice     // speech service: STT/TTS resolution + audio conversion
 	settings  *service.Settings  // keys + preferences, incl. capturer/hotkey propagation
+
+	winZoom zoomState // custom green-button window zoom toggle (see window.go)
+
+	overlayGuardStop chan struct{} // stops the overlay on-screen guard (see window.go)
 }
 
 // NewApp initialises the application: opens the database, creates the screen
@@ -77,6 +81,7 @@ func (a *App) startup(ctx context.Context) {
 
 // shutdown is called by Wails when the application is closing.
 func (a *App) shutdown(ctx context.Context) {
+	a.stopOverlayGuard()
 	a.hotkey.Shutdown()
 	a.capturer.Stop()
 	if err := a.db.Close(); err != nil {
