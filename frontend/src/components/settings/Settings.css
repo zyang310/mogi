@@ -274,7 +274,17 @@
 .apikey-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  /* Tighter than the default 24px card padding so the provider rows read compact. */
+  padding: 16px 18px;
+  /* Deeper lift than the default settings card: each provider reads as a
+     distinct floating panel instead of a flat block on the pane. */
+  box-shadow: 0 14px 32px -16px rgba(60, 50, 30, 0.45);
+}
+
+/* Dark needs a bigger, near-black shadow to register against the dark pane. */
+:root[data-theme="dark"] .apikey-card {
+  box-shadow: 0 18px 44px -14px rgba(0, 0, 0, 0.7);
 }
 
 .apikey-head {
@@ -367,8 +377,9 @@
   background: var(--secondary);
 }
 
-/* Field row: leading-key-icon input + Save + optional Remove. */
-.apikey-field {
+/* Action row: the mode-dependent controls under the head (input+Save, masked
+   field+menu, or the confirm strip). */
+.apikey-row {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -386,8 +397,23 @@
   border-radius: 8px;
 }
 
-.apikey-input-wrap:focus-within {
+.apikey-input-wrap:focus-within,
+.apikey-input-wrap.is-editing {
   border-color: var(--primary);
+}
+
+/* View mode shows a masked, non-interactive stand-in for the stored key. */
+.apikey-masked {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.15em;
+  line-height: 1;
+  color: var(--outline);
+  user-select: none;
+  overflow: hidden;
 }
 
 .apikey-input-icon {
@@ -412,88 +438,461 @@
   color: var(--outline);
 }
 
-/* Outlined danger Remove button — replaces the old bare "Remove" link. */
-.apikey-remove {
+/* Reveal toggle inside the entry field — shows/hides the key you're pasting.
+   (View mode has no eye: the stored key never reaches the frontend.) */
+.apikey-input-eye {
   flex-shrink: 0;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
+  justify-content: center;
+  padding: 4px;
+  margin-right: -4px;
+  border: none;
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+}
+
+.apikey-input-eye:hover {
+  color: var(--on-surface);
+}
+
+.apikey-input-eye .material-symbols-outlined {
+  font-size: 17px;
+}
+
+/* Square icon button — cancel (edit) / more (view). Matches the input height. */
+.apikey-icon-btn,
+.apikey-menu-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
-  background: color-mix(in srgb, var(--error) 8%, transparent);
-  color: var(--error);
+  border: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.apikey-icon-btn:hover:not(:disabled),
+.apikey-menu-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+  color: var(--on-surface);
+}
+
+.apikey-icon-btn:disabled,
+.apikey-menu-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.apikey-icon-btn .material-symbols-outlined,
+.apikey-menu-btn .material-symbols-outlined {
+  font-size: 19px;
+}
+
+/* Overflow menu (Replace / Remove) — replaces the always-on Save+Remove pair. */
+.apikey-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Full-screen catcher so any outside click closes the menu. */
+.apikey-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.apikey-menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 172px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--surface-bright);
+  border: 1px solid var(--level-1-border);
+  box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+:root[data-theme="dark"] .apikey-menu {
+  background: var(--surface-container-high);
+}
+
+.apikey-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--on-surface);
   font-family: var(--font-body);
   font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.apikey-menu-item:hover {
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+}
+
+.apikey-menu-item .material-symbols-outlined {
+  font-size: 17px;
+  color: var(--on-surface-variant);
+}
+
+.apikey-menu-item-danger {
+  color: var(--error);
+}
+
+.apikey-menu-item-danger .material-symbols-outlined {
+  color: var(--error);
+}
+
+/* Confirm-remove strip — a deliberate beat before the destructive action. */
+.apikey-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 28%, transparent);
+}
+
+.apikey-confirm-text {
+  font-size: 13px;
+  color: var(--on-surface);
+}
+
+.apikey-confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.apikey-confirm-keep,
+.apikey-confirm-remove {
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-family: var(--font-body);
+  font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
   transition: background-color 0.15s;
 }
 
-.apikey-remove:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--error) 14%, transparent);
+.apikey-confirm-keep {
+  border: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--on-surface);
 }
 
-.apikey-remove:disabled {
+.apikey-confirm-keep:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--on-surface) 6%, transparent);
+}
+
+.apikey-confirm-remove {
+  border: none;
+  background: var(--error);
+  color: var(--surface-container-lowest);
+}
+
+.apikey-confirm-remove:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error) 88%, black);
+}
+
+.apikey-confirm-keep:disabled,
+.apikey-confirm-remove:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.apikey-remove .material-symbols-outlined {
-  font-size: 17px;
+/* ── Voice Calibration — merged panel ────────────────────────────────────────
+   One panel with three numbered sections (Provider / Interviewer Voice /
+   Speaking Speed) split by hairline gradient dividers. Mirrors the .settings-card
+   surface treatment: soft-paper in light, container fill in dark. */
+.vc-panel {
+  background: var(--surface-bright);
+  border: 1px solid var(--level-1-border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 14px 32px -18px rgba(0, 0, 0, 0.4);
 }
 
-/* ── Range slider (voice speed) ──────────────────────────────────────────── */
-.settings-slider-row {
+:root[data-theme="dark"] .vc-panel {
+  background: var(--surface-container);
+}
+
+.vc-section {
+  padding: 24px 26px;
+}
+
+.vc-section-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 6px;
 }
 
-.settings-slider {
-  flex: 1;
-  height: 4px;
-  border-radius: 2px;
-  /* Not --surface-container: that equals the enclosing card's bg, so the track
-     vanishes. Use the highest surface for a track that reads against the card. */
-  background-color: var(--surface-container-highest);
-  outline: none;
-  -webkit-appearance: none;
-  appearance: none;
+/* Numbered step label — "01 · Provider". */
+.vc-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--outline);
+}
+
+.vc-section-note {
+  font-size: 13px;
+  color: var(--outline);
+}
+
+.vc-section-desc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--on-surface-variant);
+  max-width: 600px;
+  margin: 0 0 16px;
+}
+
+/* Fades to transparent at both ends so the divider reads as a soft seam. */
+.vc-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--outline-variant) 12%,
+    var(--outline-variant) 88%,
+    transparent
+  );
+}
+
+/* Reset link in the Speaking Speed header. */
+.vc-reset-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.settings-slider:disabled {
+.vc-reset-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.vc-reset-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.settings-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background-color: var(--primary);
-  border: 2px solid var(--surface-container-lowest);
-  cursor: pointer;
+/* ── Provider tiles ──────────────────────────────────────────────────────── */
+.vc-provider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
 }
 
-.settings-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background-color: var(--primary);
-  border: 2px solid var(--surface-container-lowest);
+.vc-provider {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 18px 20px;
+  border-radius: 14px;
   cursor: pointer;
+  font-family: var(--font-body);
+  background: var(--surface-container-lowest);
+  border: 1.5px solid var(--outline-variant);
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
 }
 
-.settings-slider-value {
-  min-width: 52px;
-  text-align: right;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
+.vc-provider:hover:not(:disabled):not(.is-selected) {
+  border-color: var(--outline);
+}
+
+.vc-provider.is-selected {
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.vc-provider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vc-provider-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+/* Cost pill — dot inherits the pill's text color. */
+.vc-provider-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.vc-provider-tag-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.vc-provider-tag--low {
+  color: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 14%, transparent);
+}
+
+.vc-provider-tag--premium {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+}
+
+.vc-provider-check {
+  font-size: 22px;
+  color: var(--outline-variant);
+}
+
+.vc-provider.is-selected .vc-provider-check {
+  color: var(--primary);
+  font-variation-settings: "FILL" 1;
+}
+
+.vc-provider-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
   color: var(--on-surface);
+  margin-top: 14px;
+}
+
+/* Remembered voice for this provider, in mono. */
+.vc-provider-voice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  max-width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--outline);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vc-provider-voice .material-symbols-outlined {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+/* ── Speaking speed — custom track over a transparent range input ────────── */
+.vc-speed-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.vc-speed-track {
+  flex: 1;
+  position: relative;
+  height: 6px;
+  border-radius: 6px;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+}
+
+.vc-speed-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--primary),
+    color-mix(in srgb, var(--primary) 55%, white)
+  );
+}
+
+.vc-speed-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-bright);
+  border: 3px solid var(--primary);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+/* Full-width invisible input drives the value; the visuals above track it. */
+.vc-speed-input {
+  position: absolute;
+  inset: -8px 0;
+  width: 100%;
+  height: 22px;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+}
+
+.vc-speed-input:disabled {
+  cursor: default;
+}
+
+.vc-speed-value {
+  flex-shrink: 0;
+  min-width: 78px;
+  text-align: center;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--on-surface);
+}
+
+.vc-speed-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 9px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--outline);
 }
 
 /* ── Segmented control (TTS provider toggle) ─────────────────────────────── */

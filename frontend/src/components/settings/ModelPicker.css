@@ -175,8 +175,7 @@
 .model-picker-row-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
 }
 
 .model-picker-name {
@@ -186,6 +185,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Shrink+ellipsize when the name is long so the adjacent badges keep their
+     place instead of being pushed off-row. */
+  min-width: 0;
 }
 
 .model-picker-id {

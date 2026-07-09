@@ -1,15 +1,40 @@
 .voice-picker {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-/* Reuses .settings-input, but that class sets flex:1 for row layouts — reset it
-   here so the search box doesn't stretch vertically in this column. */
-.voice-picker-search {
-  flex: none;
+/* ── Search ──────────────────────────────────────────────────────────────── */
+.voice-search-wrap {
+  position: relative;
+}
+
+.voice-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  color: var(--outline);
+  pointer-events: none;
+}
+
+.voice-search-input {
   width: 100%;
+  height: 46px;
+  padding: 0 14px 0 44px;
+  border-radius: 11px;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  color: var(--on-surface);
+  font-family: var(--font-body);
+  font-size: 14px;
+  outline: none;
   box-sizing: border-box;
+}
+
+.voice-search-input:focus {
+  border-color: var(--primary);
 }
 
 .voice-picker-status {
@@ -18,101 +43,162 @@
   margin: 4px 0;
 }
 
-.voice-picker-list {
-  list-style: none;
-  margin: 0;
-  padding: 4px;
+/* ── Voice list ──────────────────────────────────────────────────────────── */
+.voice-list {
   max-height: 280px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  border: 1px solid var(--outline-variant);
-  border-radius: 8px;
-  background-color: var(--surface-container-lowest);
+  gap: 8px;
+  padding: 2px 4px 2px 0;
 }
 
-/* Row holds the select area + the preview button side by side. Nested buttons
+/* Row: select area (icon + mono name) + badge + preview button. Nested buttons
    are invalid, so selection and preview are separate sibling buttons. */
-.voice-picker-row {
+.voice-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 11px;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
   transition: background-color 0.12s, border-color 0.12s;
 }
 
-.voice-picker-row:hover {
-  background-color: var(--surface-container-high);
+.voice-row:hover:not(.is-active) {
+  border-color: var(--outline);
 }
 
-.voice-picker-row.is-active {
+.voice-row.is-active {
   border-color: var(--primary);
-  background-color: var(--surface-container);
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
 }
 
-.voice-picker-select {
+.voice-row-select {
   flex: 1;
   min-width: 0;
-  text-align: left;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 12px;
+  background: transparent;
   border: none;
-  border-radius: 6px;
-  background-color: transparent;
-  color: var(--on-surface);
   cursor: pointer;
-  font-family: inherit;
+  text-align: left;
+  padding: 0;
 }
 
-.voice-picker-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--on-surface);
+.voice-row-icon {
+  flex-shrink: 0;
+  font-size: 20px;
+  color: var(--outline-variant);
+}
+
+.voice-row.is-active .voice-row-icon {
+  color: var(--primary);
+}
+
+.voice-row-name {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--on-surface-variant);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Outlined pill — colored text + matching border, no fill (mirrors .model-badge). */
-.voice-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 999px;
-  white-space: nowrap;
-  border: 1px solid currentColor;
-  color: var(--secondary);
-  flex-shrink: 0;
-  text-transform: capitalize;
+.voice-row.is-active .voice-row-name {
+  color: var(--on-surface);
 }
 
-.voice-picker-preview {
+/* Filled tint chip (mockup badge). */
+.voice-row-badge {
   flex-shrink: 0;
-  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.voice-row-play {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--outline-variant);
-  border-radius: 6px;
-  background-color: transparent;
-  color: var(--on-surface-variant);
+  border-radius: 9px;
+  border: none;
   cursor: pointer;
-  transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  transition: background-color 0.12s;
 }
 
-.voice-picker-preview:hover {
-  background-color: var(--surface-container-high);
-  color: var(--primary);
-  border-color: var(--primary);
+.voice-row-play:hover {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
-.voice-picker-preview .material-symbols-outlined {
+.voice-row-play .material-symbols-outlined {
   font-size: 20px;
+  color: var(--primary);
+  font-variation-settings: "FILL" 1;
+}
+
+.voice-row-play.is-playing {
+  background: var(--primary);
+}
+
+/* Animated equalizer bars while previewing (on-primary against the filled bg). */
+.voice-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 15px;
+}
+
+.voice-bars span {
+  width: 2.5px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--on-primary);
+  transform-origin: bottom;
+  animation: vcbar 0.7s ease-in-out infinite;
+}
+
+.voice-bars span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.voice-bars span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes vcbar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* ── Custom scrollbar ────────────────────────────────────────────────────── */
+.vc-scroll::-webkit-scrollbar {
+  width: 9px;
+}
+
+.vc-scroll::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: 9px;
+  border: 2px solid var(--surface-container-lowest);
+}
+
+.vc-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }

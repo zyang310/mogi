@@ -8,6 +8,7 @@ interface Props {
   onSelect: (voiceId: string) => void; // parent persists via UpdatePreferences
   speed?: number; // playback rate for previews, so they reflect the speed slider
   provider?: string; // active TTS provider; refetch the catalog when it changes
+  onCountChange?: (count: number) => void; // report catalog size up for the header note
 }
 
 // VoicePicker is a searchable list of the active provider's voices for Settings.
@@ -15,7 +16,13 @@ interface Props {
 // client-side by name. Selecting a row reports the id upward — persistence is the
 // parent's job. Each row has a ▶ button: ElevenLabs voices play their hosted
 // sample, Google voices synthesize one on the fly. Mirrors ModelPicker.
-export default function VoicePicker({ currentVoiceId, onSelect, speed = 1, provider }: Props) {
+export default function VoicePicker({
+  currentVoiceId,
+  onSelect,
+  speed = 1,
+  provider,
+  onCountChange,
+}: Props) {
   const [allVoices, setAllVoices] = useState<models.Voice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -33,7 +40,10 @@ export default function VoicePicker({ currentVoiceId, onSelect, speed = 1, provi
     (async () => {
       try {
         const list = await ListVoices();
-        if (!cancelled) setAllVoices(list ?? []);
+        if (!cancelled) {
+          setAllVoices(list ?? []);
+          onCountChange?.((list ?? []).length);
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
       } finally {
@@ -81,14 +91,17 @@ export default function VoicePicker({ currentVoiceId, onSelect, speed = 1, provi
 
   return (
     <div className="voice-picker">
-      <input
-        type="text"
-        className="settings-input voice-picker-search"
-        placeholder="Search voices…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        disabled={loading || !!error}
-      />
+      <div className="voice-search-wrap">
+        <span className="material-symbols-outlined voice-search-icon">search</span>
+        <input
+          type="text"
+          className="voice-search-input"
+          placeholder="Search voices…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          disabled={loading || !!error}
+        />
+      </div>
 
       {loading && <p className="voice-picker-status">Loading voices…</p>}
       {error && <p className="settings-error">{error}</p>}
@@ -97,37 +110,44 @@ export default function VoicePicker({ currentVoiceId, onSelect, speed = 1, provi
       )}
 
       {!loading && !error && visible.length > 0 && (
-        <ul className="voice-picker-list">
+        <div className="voice-list vc-scroll">
           {visible.map((v) => {
             const active = v.id === currentVoiceId;
             const playing = previewingId === v.id;
             return (
-              <li key={v.id} className={`voice-picker-row${active ? " is-active" : ""}`}>
+              <div key={v.id} className={`voice-row${active ? " is-active" : ""}`}>
                 <button
                   type="button"
-                  className="voice-picker-select"
+                  className="voice-row-select"
                   onClick={() => onSelect(v.id)}
                   title={v.id}
                 >
-                  <span className="voice-picker-name">{v.name || v.id}</span>
-                  {v.category && (
-                    <span className="voice-badge">{v.category}</span>
-                  )}
+                  <span className="material-symbols-outlined voice-row-icon">
+                    {active ? "graphic_eq" : "radio_button_unchecked"}
+                  </span>
+                  <span className="voice-row-name">{v.name || v.id}</span>
                 </button>
+                {v.category && <span className="voice-row-badge">{v.category}</span>}
                 <button
                   type="button"
-                  className="voice-picker-preview"
+                  className={`voice-row-play${playing ? " is-playing" : ""}`}
                   onClick={() => handlePreview(v)}
                   title={playing ? "Stop preview" : "Preview voice"}
                 >
-                  <span className="material-symbols-outlined">
-                    {playing ? "stop" : "play_arrow"}
-                  </span>
+                  {playing ? (
+                    <span className="voice-bars">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                  ) : (
+                    <span className="material-symbols-outlined">play_arrow</span>
+                  )}
                 </button>
-              </li>
+              </div>
             );
           })}
-        </ul>
+        </div>
       )}
     </div>
   );

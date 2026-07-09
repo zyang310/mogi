@@ -28,6 +28,14 @@ const PROVIDER_LABELS: Record<KeyProvider, string> = {
   google: "Google Cloud",
 };
 
+// The two spoken-voice providers, rendered as selectable tiles in Voice
+// Calibration. `tone` drives the pill color (low-cost = matcha, premium =
+// gold); `keyLabel` names the API key a tile needs when it isn't configured.
+const VOICE_PROVIDERS = [
+  { id: "google", name: "Google", tag: "Low cost", tone: "low", keyLabel: "Google Cloud" },
+  { id: "elevenlabs", name: "ElevenLabs", tag: "Premium", tone: "premium", keyLabel: "ElevenLabs" },
+] as const;
+
 // Per-provider metadata for the API-key cards. The three cards are structurally
 // identical, so we drive them from this list (label, icon tile, input hint,
 // placeholder) and render one <ApiKeyCard> per entry rather than hand-repeating.
@@ -182,6 +190,14 @@ export default function Settings({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // API-key card state. A card rests in "view" (configured) or "bare" (not set);
+  // `keyUi` holds a transient override — "edit" (replacing) or "confirmRemove".
+  // Only one overflow menu is open at a time.
+  const [keyUi, setKeyUi] = useState<Partial<Record<KeyProvider, "edit" | "confirmRemove">>>({});
+  const [openKeyMenu, setOpenKeyMenu] = useState<KeyProvider | null>(null);
+  // Per-provider reveal toggle for the key being entered (edit/bare only — the
+  // stored key is never sent to the frontend, so there's nothing to reveal in view).
+  const [keyReveal, setKeyReveal] = useState<Partial<Record<KeyProvider, boolean>>>({});
 
   const [prefs, setPrefs] = useState<models.Preferences | null>(null);
   const [intervalSec, setIntervalSec] = useState("3");
@@ -192,6 +208,9 @@ export default function Settings({
   const [voiceSpeed, setVoiceSpeed] = useState(1);
   // Active TTS provider; drives the voice picker and which voice field is saved.
   const [ttsProvider, setTtsProvider] = useState("google");
+  // Count of the active provider's voices, reported up by VoicePicker so the
+  // "N voices available" note can sit in the section header (outside the list).
+  const [voiceCount, setVoiceCount] = useState<number | null>(null);
   // Push-to-talk: capturing = listening for the next keypress to bind; hkStatus
   // reports whether the global hook is live (drives the macOS permission hint).
   const [capturing, setCapturing] = useState(false);
@@ -369,6 +388,22 @@ export default function Settings({
     google: setGoogleKey,
   };
 
+  // Set (or clear) a card's transient mode, closing any menu and discarding the
+  // draft input so a cancelled edit never lingers.
+  function setKeyMode(provider: KeyProvider, mode: "edit" | "confirmRemove" | null) {
+    setKeyUi((s) => {
+      const next = { ...s };
+      if (mode) next[provider] = mode;
+      else delete next[provider];
+      return next;
+    });
+    setOpenKeyMenu(null);
+    keySetters[provider]("");
+    setKeyReveal((s) => ({ ...s, [provider]: false }));
+    setError("");
+    setSuccess("");
+  }
+
   async function saveKey(provider: KeyProvider) {
     const key = keyInputs[provider].trim();
     if (!key) return;
@@ -379,6 +414,13 @@ export default function Settings({
       await SetAPIKey(provider, key);
       onAuthChange(await GetAuthStatus());
       keySetters[provider]("");
+      setKeyUi((s) => {
+        const next = { ...s };
+        delete next[provider]; // back to resting "view"
+        return next;
+      });
+      setKeyReveal((s) => ({ ...s, [provider]: false }));
+      setOpenKeyMenu(null);
       setSuccess(`${PROVIDER_LABELS[provider]} API key saved.`);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -397,6 +439,12 @@ export default function Settings({
       await DeleteAPIKey(provider);
       onAuthChange(await GetAuthStatus());
       keySetters[provider]("");
+      setKeyUi((s) => {
+        const next = { ...s };
+        delete next[provider]; // back to resting "bare"
+        return next;
+      });
+      setOpenKeyMenu(null);
       setSuccess(`${PROVIDER_LABELS[provider]} API key removed.`);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -557,6 +605,9 @@ export default function Settings({
               </header>
               {KEY_CARDS.map((card) => {
                 const isSet = configured[card.id];
+                // Resting mode follows configured status; keyUi overrides it while
+                // the user is replacing or confirming a remove.
+                const mode = keyUi[card.id] ?? (isSet ? "view" : "bare");
                 return (
                   <div className="settings-card apikey-card" key={card.id}>
                     <div className="apikey-head">
@@ -572,39 +623,138 @@ export default function Settings({
                         {isSet ? "Configured" : "Not set"}
                       </div>
                     </div>
-                    <div className="apikey-field">
-                      <div className="apikey-input-wrap">
-                        <span className="material-symbols-outlined apikey-input-icon">key</span>
-                        <input
-                          type="password"
-                          className="apikey-input"
-                          value={keyInputs[card.id]}
-                          onChange={(e) => keySetters[card.id](e.target.value)}
-                          placeholder={card.placeholder}
-                          disabled={saving}
-                          onKeyDown={(e) => e.key === "Enter" && saveKey(card.id)}
-                        />
+
+                    {/* VIEW — a stored key, shown as a masked (non-revealable, the
+                        frontend never holds it) field with an overflow menu. */}
+                    {mode === "view" && (
+                      <div className="apikey-row">
+                        <div className="apikey-input-wrap apikey-input-wrap-static">
+                          <span className="material-symbols-outlined apikey-input-icon">key</span>
+                          <span className="apikey-masked">••••••••••••••••</span>
+                        </div>
+                        <div className="apikey-menu-wrap">
+                          <button
+                            type="button"
+                            className="apikey-menu-btn"
+                            title="More actions"
+                            aria-label="More actions"
+                            onClick={() =>
+                              setOpenKeyMenu(openKeyMenu === card.id ? null : card.id)
+                            }
+                            disabled={saving}
+                          >
+                            <span className="material-symbols-outlined">more_vert</span>
+                          </button>
+                          {openKeyMenu === card.id && (
+                            <>
+                              <div
+                                className="apikey-menu-overlay"
+                                onClick={() => setOpenKeyMenu(null)}
+                              />
+                              <div className="apikey-menu" role="menu">
+                                <button
+                                  type="button"
+                                  className="apikey-menu-item"
+                                  onClick={() => setKeyMode(card.id, "edit")}
+                                >
+                                  <span className="material-symbols-outlined">sync</span>
+                                  Replace key
+                                </button>
+                                <button
+                                  type="button"
+                                  className="apikey-menu-item apikey-menu-item-danger"
+                                  onClick={() => setKeyMode(card.id, "confirmRemove")}
+                                >
+                                  <span className="material-symbols-outlined">delete</span>
+                                  Remove key
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <button
-                        className="btn btn-primary settings-field-save"
-                        onClick={() => saveKey(card.id)}
-                        disabled={!keyInputs[card.id].trim() || saving}
-                      >
-                        {saving ? "Saving…" : "Save"}
-                      </button>
-                      {isSet && (
-                        <button
-                          type="button"
-                          className="apikey-remove"
-                          onClick={() => removeKey(card.id)}
-                          disabled={saving}
-                          title="Remove key"
+                    )}
+
+                    {/* EDIT (replacing) / BARE (first time) — editable input + Save. */}
+                    {(mode === "edit" || mode === "bare") && (
+                      <div className="apikey-row">
+                        <div
+                          className={`apikey-input-wrap${mode === "edit" ? " is-editing" : ""}`}
                         >
-                          <span className="material-symbols-outlined">delete</span>
-                          Remove
+                          <span className="material-symbols-outlined apikey-input-icon">key</span>
+                          <input
+                            type={keyReveal[card.id] ? "text" : "password"}
+                            className="apikey-input"
+                            value={keyInputs[card.id]}
+                            onChange={(e) => keySetters[card.id](e.target.value)}
+                            placeholder={card.placeholder}
+                            disabled={saving}
+                            autoFocus={mode === "edit"}
+                            onKeyDown={(e) => e.key === "Enter" && saveKey(card.id)}
+                          />
+                          <button
+                            type="button"
+                            className="apikey-input-eye"
+                            onClick={() =>
+                              setKeyReveal((s) => ({ ...s, [card.id]: !s[card.id] }))
+                            }
+                            title={keyReveal[card.id] ? "Hide key" : "Show key"}
+                            aria-label={keyReveal[card.id] ? "Hide key" : "Show key"}
+                            tabIndex={-1}
+                          >
+                            <span className="material-symbols-outlined">
+                              {keyReveal[card.id] ? "visibility_off" : "visibility"}
+                            </span>
+                          </button>
+                        </div>
+                        <button
+                          className="btn btn-primary settings-field-save"
+                          onClick={() => saveKey(card.id)}
+                          disabled={!keyInputs[card.id].trim() || saving}
+                        >
+                          {saving ? "Saving…" : "Save"}
                         </button>
-                      )}
-                    </div>
+                        {mode === "edit" && (
+                          <button
+                            type="button"
+                            className="apikey-icon-btn"
+                            title="Cancel"
+                            aria-label="Cancel"
+                            onClick={() => setKeyMode(card.id, null)}
+                            disabled={saving}
+                          >
+                            <span className="material-symbols-outlined">close</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CONFIRM REMOVE — a beat before the destructive action. */}
+                    {mode === "confirmRemove" && (
+                      <div className="apikey-confirm">
+                        <span className="apikey-confirm-text">
+                          Remove this key? You'll need to paste it again later.
+                        </span>
+                        <div className="apikey-confirm-actions">
+                          <button
+                            type="button"
+                            className="apikey-confirm-keep"
+                            onClick={() => setKeyMode(card.id, null)}
+                            disabled={saving}
+                          >
+                            Keep it
+                          </button>
+                          <button
+                            type="button"
+                            className="apikey-confirm-remove"
+                            onClick={() => removeKey(card.id)}
+                            disabled={saving}
+                          >
+                            {saving ? "Removing…" : "Remove"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -618,47 +768,69 @@ export default function Settings({
                 <p>Pick the provider and voice your interviewer speaks with.</p>
               </header>
               {anyVoiceConfigured ? (
-                <>
-                  <div className="settings-card">
-                    <div className="settings-card-head">
-                      <span className="material-symbols-outlined">record_voice_over</span>
-                      <h3 className="settings-card-title">Provider</h3>
+                // One merged panel: three numbered sections (Provider /
+                // Interviewer Voice / Speaking Speed) split by gradient dividers.
+                <div className="vc-panel">
+                  {/* 01 · PROVIDER — two selectable tiles. */}
+                  <div className="vc-section">
+                    <div className="vc-section-head">
+                      <span className="vc-section-label">01 · Provider</span>
+                      <span className="vc-section-note">Each provider remembers its own voice.</span>
                     </div>
-                    <p className="settings-hint">
-                      Sets the spoken voice only — Google is low-cost, ElevenLabs is premium, and
-                      each remembers its own voice. Mic transcription uses ElevenLabs when its key
-                      is present, otherwise Google.
+                    <p className="vc-section-desc">
+                      Sets the spoken voice only. Mic transcription uses ElevenLabs when its key is
+                      present, otherwise Google.
                     </p>
-                    <div className="settings-segmented">
-                      <button
-                        type="button"
-                        className={`settings-segment${activeProvider === "google" ? " active" : ""}`}
-                        onClick={() => saveTTSProvider("google")}
-                        disabled={saving || !authStatus.googleConfigured}
-                        title={authStatus.googleConfigured ? "" : "Add a Google Cloud key first"}
-                      >
-                        Google · low cost
-                      </button>
-                      <button
-                        type="button"
-                        className={`settings-segment${activeProvider === "elevenlabs" ? " active" : ""}`}
-                        onClick={() => saveTTSProvider("elevenlabs")}
-                        disabled={saving || !authStatus.elevenLabsConfigured}
-                        title={authStatus.elevenLabsConfigured ? "" : "Add an ElevenLabs key first"}
-                      >
-                        ElevenLabs · premium
-                      </button>
+                    <div className="vc-provider-grid">
+                      {VOICE_PROVIDERS.map((p) => {
+                        const selected = activeProvider === p.id;
+                        const isConfigured =
+                          p.id === "google"
+                            ? authStatus.googleConfigured
+                            : authStatus.elevenLabsConfigured;
+                        const remembered =
+                          p.id === "google" ? prefs?.googleVoiceId : prefs?.voiceId;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className={`vc-provider${selected ? " is-selected" : ""}`}
+                            onClick={() => saveTTSProvider(p.id)}
+                            disabled={saving || !isConfigured}
+                            title={isConfigured ? "" : `Add a ${p.keyLabel} key first`}
+                          >
+                            <div className="vc-provider-top">
+                              <span className={`vc-provider-tag vc-provider-tag--${p.tone}`}>
+                                <span className="vc-provider-tag-dot" />
+                                {p.tag}
+                              </span>
+                              <span className="material-symbols-outlined vc-provider-check">
+                                {selected ? "check_circle" : "radio_button_unchecked"}
+                              </span>
+                            </div>
+                            <div className="vc-provider-name">{p.name}</div>
+                            <div className="vc-provider-voice">
+                              <span className="material-symbols-outlined">graphic_eq</span>
+                              {remembered || "Not set"}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <div className="settings-card">
-                    <div className="settings-card-head">
-                      <span className="material-symbols-outlined">record_voice_over</span>
-                      <h3 className="settings-card-title">Interviewer Voice</h3>
+                  <div className="vc-divider" />
+
+                  {/* 02 · INTERVIEWER VOICE — searchable list of the active provider's voices. */}
+                  <div className="vc-section">
+                    <div className="vc-section-head">
+                      <span className="vc-section-label">02 · Interviewer Voice</span>
+                      <span className="vc-section-note">
+                        {voiceCount != null ? `${voiceCount} voices available` : ""}
+                      </span>
                     </div>
-                    <p className="settings-hint">
-                      Click a voice to select it, or the play button to hear a sample. During
-                      a session, toggle voice mode to speak with the interviewer aloud.
+                    <p className="vc-section-desc">
+                      Click a voice to select it, or the play button to hear a sample.
                     </p>
                     <VoicePicker
                       provider={activeProvider}
@@ -669,35 +841,19 @@ export default function Settings({
                       }
                       onSelect={saveVoice}
                       speed={voiceSpeed}
+                      onCountChange={setVoiceCount}
                     />
                   </div>
 
-                  <div className="settings-card">
-                    <div className="settings-card-head">
-                      <span className="material-symbols-outlined">speed</span>
-                      <h3 className="settings-card-title">Speaking speed</h3>
-                    </div>
-                    <p className="settings-hint">
-                      How fast the interviewer talks. Pitch stays natural at any speed — preview a
-                      voice above to hear the change.
-                    </p>
-                    <div className="settings-slider-row">
-                      <input
-                        type="range"
-                        className="settings-slider"
-                        min={0.5}
-                        max={2}
-                        step={0.05}
-                        value={voiceSpeed}
-                        onChange={(e) => setVoiceSpeed(Number(e.target.value))}
-                        onPointerUp={saveVoiceSpeed}
-                        onKeyUp={saveVoiceSpeed}
-                        disabled={saving || !prefs}
-                      />
-                      <span className="settings-slider-value">{voiceSpeed.toFixed(2)}×</span>
+                  <div className="vc-divider" />
+
+                  {/* 03 · SPEAKING SPEED — custom track over a transparent range input. */}
+                  <div className="vc-section">
+                    <div className="vc-section-head">
+                      <span className="vc-section-label">03 · Speaking Speed</span>
                       <button
                         type="button"
-                        className="settings-link-btn"
+                        className="vc-reset-btn"
                         onClick={() => {
                           setVoiceSpeed(1);
                           savePrefs({ voiceSpeed: 1 }, "Voice speed saved.");
@@ -707,8 +863,38 @@ export default function Settings({
                         Reset
                       </button>
                     </div>
+                    <div className="vc-speed-row">
+                      <div className="vc-speed-track">
+                        <div
+                          className="vc-speed-fill"
+                          style={{ width: `${((voiceSpeed - 0.5) / 1.5) * 100}%` }}
+                        />
+                        <div
+                          className="vc-speed-thumb"
+                          style={{ left: `${((voiceSpeed - 0.5) / 1.5) * 100}%` }}
+                        />
+                        <input
+                          type="range"
+                          className="vc-speed-input"
+                          min={0.5}
+                          max={2}
+                          step={0.05}
+                          value={voiceSpeed}
+                          onChange={(e) => setVoiceSpeed(Number(e.target.value))}
+                          onPointerUp={saveVoiceSpeed}
+                          onKeyUp={saveVoiceSpeed}
+                          disabled={saving || !prefs}
+                        />
+                      </div>
+                      <div className="vc-speed-value">{voiceSpeed.toFixed(2)}×</div>
+                    </div>
+                    <div className="vc-speed-scale">
+                      <span>0.5× slower</span>
+                      <span>1.0× natural</span>
+                      <span>2.0× faster</span>
+                    </div>
                   </div>
-                </>
+                </div>
               ) : (
                 <div className="settings-card settings-card-placeholder">
                   <span className="material-symbols-outlined">record_voice_over</span>
