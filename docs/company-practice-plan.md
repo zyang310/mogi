@@ -46,6 +46,21 @@ up") stays the default and is untouched. Company Practice is a separate tab with
 
 ## Data source
 
+> **Update (2026-07): switched to
+> [liquidslr/leetcode-company-wise-problems](https://github.com/liquidslr/leetcode-company-wise-problems)**
+> — the source the plan below originally passed over. What changed: refreshes became **unattended**
+> (a biweekly workflow, `.github/workflows/refresh-problems.yml`, regenerates the CSV and opens a
+> PR), and an unattended refresh is only as trustworthy as its upstream — so we moved to the
+> widely-used, actively maintained dataset (26k+ stars). Its schema gaps are filled at generation
+> time: it carries no problem `ID` and no usable acceptance column, so both are **joined from
+> LeetCode's public `algorithms` API** — the same call the generator already makes for the
+> algorithms-only filter — and its UPPERCASE difficulties are normalized on ingest. Its folder
+> names are proper display names ("ByteDance", "Booking.com"), carried through as a new `name` CSV
+> column that replaced the hand-maintained `companyNameOverrides` map, so newly appearing companies
+> get correct labels with no human in the loop. The analysis below documents the original
+> (snehasishroy) source; its design conclusions — embed + commit, the `recent` flag,
+> degenerate-pool guards — all carry over unchanged.
+
 [github.com/snehasishroy/leetcode-companywise-interview-questions](https://github.com/snehasishroy/leetcode-companywise-interview-questions)
 — actively maintained (scraped from LeetCode's premium company filter; last push May 2026). One
 folder per company (**657**), each with up to five CSVs by recency window (`thirty-days`,

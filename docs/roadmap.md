@@ -95,5 +95,10 @@ screen-driven interview flavored by that company's style. **The default Hub flow
       modal (no titles), session banner with a face-down Q2 reveal card; reuses the active-session UI
 - [x] Phase 5 — polish: persist last company + difficulty filter, session-row company/mode
       persistence with a History badge, tests + docs
+- [x] Data refresh automation (2026-07): pipeline switched to
+      [liquidslr/leetcode-company-wise-problems](https://github.com/liquidslr/leetcode-company-wise-problems)
+      (ids/acceptance joined from LeetCode's public algorithms API; upstream display names carried
+      as a `name` column); a biweekly scheduled workflow (`refresh-problems.yml`) regenerates the
+      CSV and opens a PR
 - [ ] Stretch (deferred): mock repeat-avoidance, elapsed-time pacing context, embed +
       background-refresh, AI-generated opener

@@ -41,44 +41,10 @@ const (
 var (
 	parseOnce    sync.Once
 	byCompany    map[string][]models.Problem // slug -> problems, frequency desc (CSV order)
+	companyNames map[string]string           // slug -> upstream display name ("bytedance" -> "ByteDance")
 	companySlugs []string                    // sorted company slugs for stable Companies() order
 	parseErr     error
 )
-
-// companyNameOverrides maps slugs whose display name isn't just a title-cased
-// version of the slug — acronyms and camelCase brands. Everything else falls
-// through to the default transform (hyphens -> spaces, each word capitalised).
-var companyNameOverrides = map[string]string{
-	"amd":        "AMD",
-	"att":        "AT&T",
-	"bytedance":  "ByteDance",
-	"c3-ai":      "C3 AI",
-	"deepmind":   "DeepMind",
-	"doordash":   "DoorDash",
-	"dp-world":   "DP World",
-	"ebay":       "eBay",
-	"ey":         "EY",
-	"github":     "GitHub",
-	"hp":         "HP",
-	"hpe":        "HPE",
-	"hsbc":       "HSBC",
-	"ibm":        "IBM",
-	"jpmorgan":   "JPMorgan",
-	"kpmg":       "KPMG",
-	"linkedin":   "LinkedIn",
-	"nvidia":     "NVIDIA",
-	"openai":     "OpenAI",
-	"oyo":        "OYO",
-	"paypal":     "PayPal",
-	"phonepe":    "PhonePe",
-	"pwc":        "PwC",
-	"sap":        "SAP",
-	"servicenow": "ServiceNow",
-	"tcs":        "TCS",
-	"tiktok":     "TikTok",
-	"uipath":     "UiPath",
-	"vmware":     "VMware",
-}
 
 // load parses the embedded CSV once, grouping problems by company slug. It never
 // panics: a parse failure is recorded in parseErr and surfaced by the accessors.
@@ -93,11 +59,12 @@ func load() {
 		}
 
 		byCompany = make(map[string][]models.Problem)
+		companyNames = make(map[string]string)
 		for i, rec := range records {
-			if i == 0 || len(rec) < 8 { // skip header and any short row
+			if i == 0 || len(rec) < 9 { // skip header and any short row
 				continue
 			}
-			// Columns: company,id,slug,title,difficulty,frequency,acceptance,recent.
+			// Columns: company,id,slug,title,difficulty,frequency,acceptance,recent,name.
 			id, _ := strconv.Atoi(rec[1])
 			freq, _ := strconv.ParseFloat(rec[5], 64)
 			acc, _ := strconv.ParseFloat(rec[6], 64)
@@ -111,6 +78,9 @@ func load() {
 				URL:        "https://leetcode.com/problems/" + rec[2],
 				Recent:     recent,
 			})
+			if companyNames[rec[0]] == "" {
+				companyNames[rec[0]] = rec[8]
+			}
 		}
 
 		companySlugs = make([]string, 0, len(byCompany))
@@ -321,17 +291,20 @@ func allIndices(pool []models.Problem) []int {
 }
 
 // DisplayName returns the human-readable company name for a slug (e.g.
-// "goldman-sachs" -> "Goldman Sachs"), using the same overrides as the picker.
-// Exported for callers (app.go) that need the label without scanning Companies().
+// "goldman-sachs" -> "Goldman Sachs"). Exported for callers (app.go) that need
+// the label without scanning Companies().
 func DisplayName(slug string) string {
+	load() // names come from the embedded CSV, not a static map
 	return displayName(slug)
 }
 
-// displayName turns a company slug into a human label: an override when present,
-// else hyphens become spaces and each word is capitalised ("goldman-sachs" ->
-// "Goldman Sachs").
+// displayName turns a company slug into a human label: the upstream dataset's
+// display name when the slug is in the data ("bytedance" -> "ByteDance"), else
+// a title-case fallback — hyphens become spaces, each word capitalised — for
+// slugs that dropped out of the dataset (e.g. a stale lastCompany preference).
+// Callers must ensure load() ran.
 func displayName(slug string) string {
-	if name, ok := companyNameOverrides[slug]; ok {
+	if name := companyNames[slug]; name != "" {
 		return name
 	}
 	words := strings.FieldsFunc(slug, func(r rune) bool { return r == '-' || r == '_' })

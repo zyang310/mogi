@@ -1,0 +1,77 @@
+# Refresh problems dataset — runs on the 1st and 15th of each month (≈ every
+# two weeks) and on demand.
+#
+# Purpose: keep the committed Company Practice dataset (internal/problems/data)
+# current. It re-runs the same generator a developer runs locally — downloading
+# the upstream company-wise dataset and joining ids/acceptance from LeetCode's
+# public algorithms API — and opens a PR when anything changed. The generator's
+# sanity gates (output floors, sentinel checks) make a broken upstream fail this
+# job loudly instead of shipping a gutted dataset.
+#
+# Caveats worth knowing:
+# - PRs created with the default GITHUB_TOKEN do NOT trigger build.yml, which is
+#   why the problems tests run here; close and reopen the PR to force full CI.
+# - GitHub pauses scheduled workflows on public repos after ~60 days without
+#   repo activity (re-enable from the Actions tab).
+# - If LeetCode ever blocks datacenter IPs, the run fails before writing
+#   anything; the fallback is running `go generate ./internal/problems/` locally.
+name: Refresh problems dataset
+
+on:
+  schedule:
+    - cron: "0 6 1,15 * *" # 06:00 UTC on the 1st and 15th
+  workflow_dispatch: {}
+
+# Needed to push the refresh branch and open the PR.
+permissions:
+  contents: write
+  pull-requests: write
+
+# Never let two refreshes race over the same branch.
+concurrency:
+  group: refresh-problems
+
+jobs:
+  refresh:
+    name: Regenerate & open PR
+    # The generator and the problems package are pure Go (no wails/webkit, no
+    # CGO), so a Linux runner works. Do NOT `go build ./...` here — package main
+    # needs the built frontend for its embed and the wails runtime needs system
+    # webview libs; full CI stays build.yml's job.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod # stays in sync with the module's Go version
+          cache-dependency-path: go.sum
+
+      - name: Regenerate dataset
+        run: go generate ./internal/problems/
+
+      - name: Test problems package
+        run: go test ./internal/problems/...
+
+      - name: Open PR with refreshed data
+        uses: peter-evans/create-pull-request@v7 # no-op when the tree is clean
+        with:
+          add-paths: internal/problems/data/
+          branch: chore/problems-refresh
+          delete-branch: true
+          commit-message: "chore(problems): refresh company dataset"
+          title: "chore(problems): refresh company dataset"
+          body: |
+            Automated biweekly refresh of the Company Practice dataset
+            (`internal/problems/data/`) from
+            [liquidslr/leetcode-company-wise-problems](https://github.com/liquidslr/leetcode-company-wise-problems),
+            with problem ids and acceptance rates joined from LeetCode's public
+            algorithms API. See `internal/problems/data/SOURCE.md` for the new
+            snapshot's row/company counts.
+
+            The generator's sanity gates and `go test ./internal/problems/...`
+            passed in the refresh workflow. Note: PRs opened with the default
+            `GITHUB_TOKEN` do not trigger `build.yml` — close and reopen this PR
+            to run full CI before merging, if desired.

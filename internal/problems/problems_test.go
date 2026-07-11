@@ -3,46 +3,67 @@ package problems
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 
 	"mogi/internal/models"
 )
 
-// TestEmbedData verifies the committed CSV parses into the shape the app expects:
-// the documented company/row counts, derived LeetCode URLs, canonical
-// difficulties, and a sensible error for an unknown company.
+// TestEmbedData verifies the committed CSV parses into the shape the app
+// expects. Counts are floors rather than exact values — mirroring the
+// generator's own sanity gates — so the biweekly dataset refresh doesn't break
+// the build; the per-row invariants pin what the app actually relies on.
 func TestEmbedData(t *testing.T) {
 	companies := Companies()
-	if len(companies) != 647 {
-		t.Errorf("company count = %d, want 647", len(companies))
+	if len(companies) < 400 {
+		t.Errorf("company count = %d, want >= 400", len(companies))
 	}
 
 	total := 0
 	for _, c := range companies {
 		total += c.ProblemCount
 	}
-	if total != 16914 {
-		t.Errorf("total problems = %d, want 16914", total)
+	if total < 10000 {
+		t.Errorf("total problems = %d, want >= 10000", total)
 	}
 
-	// google's pool: Two Sum should be present with a derived URL and canonical
-	// difficulty, and (being 100% frequency) it sorts to the top.
+	// google's pool must contain Two Sum, fully enriched: the id and acceptance
+	// come from the LeetCode API join, the URL is derived from the slug.
 	google, err := Problems("google")
 	if err != nil {
 		t.Fatalf("Problems(google): %v", err)
 	}
-	if len(google) == 0 {
-		t.Fatal("google pool is empty")
+	var twoSum *models.Problem
+	positiveFreq := false
+	for i := range google {
+		if google[i].URL == "https://leetcode.com/problems/two-sum" {
+			twoSum = &google[i]
+		}
+		if google[i].Frequency > 0 {
+			positiveFreq = true
+		}
 	}
-	if google[0].Title != "Two Sum" {
-		t.Errorf("highest-frequency google problem = %q, want Two Sum", google[0].Title)
+	if twoSum == nil {
+		t.Fatal("google pool has no two-sum")
 	}
-	if google[0].URL != "https://leetcode.com/problems/two-sum" {
-		t.Errorf("Two Sum URL = %q", google[0].URL)
+	if twoSum.ID != 1 {
+		t.Errorf("Two Sum ID = %d, want 1", twoSum.ID)
+	}
+	if twoSum.Title != "Two Sum" {
+		t.Errorf("Two Sum title = %q", twoSum.Title)
+	}
+	if twoSum.Difficulty != "Easy" {
+		t.Errorf("Two Sum difficulty = %q, want Easy", twoSum.Difficulty)
+	}
+	if twoSum.Acceptance <= 0 || twoSum.Acceptance >= 100 {
+		t.Errorf("Two Sum acceptance = %v, want in (0,100)", twoSum.Acceptance)
+	}
+	if !positiveFreq {
+		t.Error("google pool has no problem with positive frequency")
 	}
 
-	// Every difficulty across the whole dataset is one of the three canonical
-	// values (no normalisation needed at read time).
+	// Dataset-wide invariants: canonical difficulty, API-enriched id, sane
+	// percentage ranges, and a derived LeetCode URL on every row.
 	for _, c := range companies {
 		pl, err := Problems(c.Slug)
 		if err != nil {
@@ -54,6 +75,18 @@ func TestEmbedData(t *testing.T) {
 			default:
 				t.Fatalf("%s / %q: non-canonical difficulty %q", c.Slug, p.Title, p.Difficulty)
 			}
+			if p.ID <= 0 {
+				t.Fatalf("%s / %q: missing problem id", c.Slug, p.Title)
+			}
+			if p.Frequency < 0 || p.Frequency > 100 {
+				t.Fatalf("%s / %q: frequency %v out of range", c.Slug, p.Title, p.Frequency)
+			}
+			if p.Acceptance < 0 || p.Acceptance > 100 {
+				t.Fatalf("%s / %q: acceptance %v out of range", c.Slug, p.Title, p.Acceptance)
+			}
+			if !strings.HasPrefix(p.URL, "https://leetcode.com/problems/") {
+				t.Fatalf("%s / %q: unexpected URL %q", c.Slug, p.Title, p.URL)
+			}
 		}
 	}
 
@@ -62,22 +95,35 @@ func TestEmbedData(t *testing.T) {
 	}
 }
 
-// TestDisplayName covers the default title-case transform and the acronym /
-// camelCase overrides.
+// TestDisplayName covers both naming paths: display names carried through from
+// the upstream folder (including brand casing the old hand-maintained override
+// map used to patch) and the title-case fallback for slugs absent from the
+// dataset (e.g. a stale lastCompany preference).
 func TestDisplayName(t *testing.T) {
-	cases := map[string]string{
-		"google":         "Google",
-		"goldman-sachs":  "Goldman Sachs",
-		"morgan-stanley": "Morgan Stanley",
-		"anthropic":      "Anthropic",
-		"jpmorgan":       "JPMorgan",
-		"ibm":            "IBM",
-		"amd":            "AMD",
-		"tiktok":         "TikTok",
+	fromDataset := map[string]string{
+		"google":    "Google",
+		"bytedance": "ByteDance",
 	}
-	for slug, want := range cases {
-		if got := displayName(slug); got != want {
-			t.Errorf("displayName(%q) = %q, want %q", slug, got, want)
+	for slug, want := range fromDataset {
+		if got := DisplayName(slug); got != want {
+			t.Errorf("DisplayName(%q) = %q, want %q", slug, got, want)
+		}
+	}
+
+	fallback := map[string]string{
+		"some-unknown-co":  "Some Unknown Co",
+		"vanished-startup": "Vanished Startup",
+	}
+	for slug, want := range fallback {
+		if got := DisplayName(slug); got != want {
+			t.Errorf("DisplayName(%q) = %q, want %q", slug, got, want)
+		}
+	}
+
+	// Every company in the dataset carries a non-empty display name.
+	for _, c := range Companies() {
+		if strings.TrimSpace(c.Name) == "" {
+			t.Fatalf("company %q has an empty display name", c.Slug)
 		}
 	}
 }
