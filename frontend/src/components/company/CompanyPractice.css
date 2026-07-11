@@ -1,5 +1,5 @@
 /* ── Company Practice page ────────────────────────────────────────────────
-   Full-page tab: a centered column with a searchable company list, then a
+   Full-page tab: a centered column with a searchable company directory, then a
    selected company's problem pool. Owns its own vertical scroll since
    .app-content clips overflow (mirrors .history-page). */
 .company-page {
@@ -11,7 +11,7 @@
 
 .company-inner {
   width: 100%;
-  max-width: 880px;
+  max-width: 940px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -30,13 +30,66 @@
   font-size: 14px;
   color: var(--on-surface-variant);
   margin: 8px 0 0;
+  max-width: 560px;
 }
 
-/* Reuses .settings-input, but reset its row-layout flex:1 for this column. */
-.company-search {
+/* List-view header: title/subtitle on the left, live company count on the
+   right (mirrors .history-head). The base .company-head stays block for the
+   detail view, where it holds just the company name + pool summary. */
+.company-head.co-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.co-count {
   flex: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+/* ── Search field (icon + input) ───────────────────────────────────────── */
+.co-search-wrap {
+  position: relative;
+}
+
+.co-search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 22px;
+  color: var(--outline);
+  pointer-events: none;
+}
+
+.co-search {
   width: 100%;
   box-sizing: border-box;
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--on-surface);
+  background: var(--surface);
+  border: 1px solid var(--level-1-border);
+  border-radius: 12px;
+  padding: 15px 18px 15px 48px;
+  outline: none;
+}
+
+.co-search::placeholder {
+  color: var(--outline);
+}
+
+.co-search:focus {
+  border-color: var(--primary);
+}
+
+.co-search:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* ── Status states ─────────────────────────────────────────────────────── */
@@ -50,96 +103,356 @@
   color: var(--error);
 }
 
-/* ── Company list ──────────────────────────────────────────────────────── */
-.company-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* The row shell is the <li>: it hosts the star toggle and the open button as
-   siblings (a star nested inside the old row <button> would be invalid HTML). */
-.company-row {
-  width: 100%;
-  box-sizing: border-box;
+/* ── Shared label row: mono caption + trailing hairline rule ───────────── */
+.co-label {
   display: flex;
   align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.co-label-star {
+  font-size: 18px;
+  color: var(--secondary);
+  font-variation-settings: "FILL" 1;
+}
+
+.co-label-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+.co-label-hint {
+  font-size: 12.5px;
+  color: var(--outline);
+  white-space: nowrap;
+}
+
+.co-label-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--outline-variant);
+}
+
+/* ── Monogram tiles (deterministic per-company tint) ────────────────────
+   The tint index is chosen from the company name in deriveCompany(); each
+   .co-tint-N sets the light values, overridden for dark below. */
+.co-tile {
+  flex: none;
+  width: 50px;
+  height: 50px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 21px;
+  background: var(--tile-bg);
+  color: var(--tile-fg);
+}
+
+.co-tile-sm {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  font-size: 16px;
+}
+
+.co-tint-0 { --tile-bg: #e6e7f4; --tile-fg: #3b3f72; }
+.co-tint-1 { --tile-bg: #e6edd5; --tile-fg: #4c6529; }
+.co-tint-2 { --tile-bg: #fbe4d2; --tile-fg: #a85a1e; }
+.co-tint-3 { --tile-bg: #fbe2e4; --tile-fg: #b04e58; }
+.co-tint-4 { --tile-bg: #f4e7c8; --tile-fg: #8a6a1e; }
+.co-tint-5 { --tile-bg: #dce9e6; --tile-fg: #2e6659; }
+
+:root[data-theme="dark"] .co-tint-0 { --tile-bg: #2c2f5a; --tile-fg: #b4b7f0; }
+:root[data-theme="dark"] .co-tint-1 { --tile-bg: #33401f; --tile-fg: #bad292; }
+:root[data-theme="dark"] .co-tint-2 { --tile-bg: #43301f; --tile-fg: #e4a06b; }
+:root[data-theme="dark"] .co-tint-3 { --tile-bg: #442830; --tile-fg: #eda0a8; }
+:root[data-theme="dark"] .co-tint-4 { --tile-bg: #3e3620; --tile-fg: #debb68; }
+:root[data-theme="dark"] .co-tint-5 { --tile-bg: #22403a; --tile-fg: #86c6b6; }
+
+/* ── Starred band (pinned above the directory, does not scroll) ────────── */
+.co-band-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.co-star-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 16px 16px 18px;
+  border: 1px solid var(--level-1-border);
+  border-radius: 16px;
+  background: var(--surface-container-low);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  box-shadow: 0 16px 34px -28px rgba(60, 50, 30, 0.6);
+  transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+}
+
+:root[data-theme="dark"] .co-star-card {
+  box-shadow: 0 16px 34px -28px rgba(0, 0, 0, 0.7);
+}
+
+.co-star-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 22px 40px -24px rgba(60, 50, 30, 0.5);
+  border-color: var(--secondary);
+}
+
+:root[data-theme="dark"] .co-star-card:hover {
+  box-shadow: 0 22px 40px -24px rgba(0, 0, 0, 0.6);
+}
+
+/* Tile wrapper anchors the star badge to the tile's corner. */
+.co-tile-wrap {
+  position: relative;
+  flex: none;
+}
+
+.co-star-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 21px;
+  height: 21px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  background: var(--secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 3px var(--surface-container-low);
+  transition: transform 0.15s, background-color 0.15s;
+}
+
+.co-star-badge:hover {
+  transform: scale(1.15);
+}
+
+.co-star-badge .material-symbols-outlined {
+  font-size: 12px;
+  color: #fff;
+  font-variation-settings: "FILL" 1;
+}
+
+.co-star-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
-  padding: 0 0 0 8px; /* star gutter; the open button carries the rest */
-  border: 1px solid var(--outline-variant);
+}
+
+.co-star-card-name {
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── All-companies directory (scrolling viewport) ──────────────────────── */
+.co-scroll-wrap {
+  position: relative;
+}
+
+.co-scroll {
+  max-height: 470px;
+  overflow-y: auto; 
+  border: 1px solid var(--level-1-border);
+  border-radius: 16px;
+  background: var(--surface-container);
+  padding: 20px 20px 40px;
+}
+
+.co-scroll-inner {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+/* Sticky A–Z jump rail. Kept short enough (27 × 16px ≈ 432px) to fit the
+   470px viewport so it never scrolls out of reach while pinned. */
+.co-rail {
+  position: sticky;
+  top: 0;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.co-rail-letter {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  width: 24px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.co-rail-letter:hover {
+  background: var(--surface-container-high);
+}
+
+.co-rail-letter.absent {
+  color: var(--outline-variant);
+  cursor: default;
+}
+
+.co-rail-letter.absent:hover {
+  background: transparent;
+}
+
+.co-groups {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.co-group-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+
+.co-group-letter {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.co-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+/* Directory card: open button + sibling star toggle (siblings, not nested —
+   a <button> inside a <button> is invalid HTML). */
+.co-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--surface-container-low);
+  border: 1px solid var(--level-1-border);
   border-radius: 12px;
-  background-color: var(--surface-container);
-  transition: border-color 0.15s, background-color 0.15s;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
 }
 
-.company-row:hover {
+.co-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px -20px rgba(60, 50, 30, 0.55);
   border-color: var(--outline);
-  background-color: var(--surface-container-high);
 }
 
-/* Open button: transparent chrome carrying the old row hit area. */
-.company-row-main {
+:root[data-theme="dark"] .co-card:hover {
+  box-shadow: 0 12px 26px -20px rgba(0, 0, 0, 0.6);
+}
+
+.co-card-open {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px 14px 8px;
+  gap: 13px;
+  padding: 12px 8px 12px 15px;
   border: none;
-  border-radius: 12px;
   background: transparent;
-  color: var(--on-surface);
   cursor: pointer;
   font-family: inherit;
   text-align: left;
 }
 
-.company-row-name {
+.co-card-text {
   flex: 1;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--on-surface);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.company-row-count {
-  font-size: 12px;
-  color: var(--on-surface-variant);
+.co-card-name {
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.company-row-arrow {
-  font-size: 20px;
-  color: var(--outline);
+.co-card-count {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--on-surface-variant);
 }
 
-/* Star toggle: .company-icon-btn base; filled + tinted when starred (the
-   Material Symbols FILL variation axis is loaded in index.html). */
-.company-star-btn.starred,
-.company-star-btn.starred:hover:not(:disabled) {
-  color: var(--primary);
+/* Star toggle: a full-height strip on the card's right edge. */
+.co-card-star {
+  flex: none;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  border: none;
+  background: transparent;
+  color: var(--outline-variant);
+  cursor: pointer;
+  border-radius: 0 12px 12px 0;
+  transition: color 0.12s, background-color 0.12s;
 }
 
-.company-star-btn.starred .material-symbols-outlined {
+.co-card-star:hover {
+  color: var(--secondary);
+  background: var(--surface-container-high);
+}
+
+.co-card-star .material-symbols-outlined {
+  font-size: 19px;
+}
+
+.co-card-star.starred {
+  color: var(--secondary);
+}
+
+.co-card-star.starred .material-symbols-outlined {
   font-variation-settings: "FILL" 1;
 }
 
-/* ── Starred / All companies sections ──────────────────────────────────── */
-.company-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.company-section-label {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--on-surface-variant);
+/* Bottom fade — signals more content below the scroll. Fades to the viewport
+   fill; the right inset clears the scrollbar gutter. */
+.co-fade {
+  position: absolute;
+  left: 1px;
+  right: 12px;
+  bottom: 1px;
+  height: 52px;
+  border-radius: 0 0 16px 16px;
+  background: linear-gradient(to top, var(--surface-container), transparent);
+  pointer-events: none;
 }
 
 /* ── Back link ─────────────────────────────────────────────────────────── */

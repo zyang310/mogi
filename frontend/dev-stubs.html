@@ -17,6 +17,31 @@
     </script>
     <script>
       (function () {
+        var raw = [
+          ['Google',2144],['Amazon',1893],['Meta',1502],['Microsoft',1421],
+          ['Apple',1188],['Bloomberg',987],['Uber',811],['ByteDance',743],
+          ['LinkedIn',678],['Airbnb',634],['Adobe',512],['Salesforce',498],
+          ['TikTok',487],['Oracle',445],['DoorDash',421],['Netflix',402],
+          ['Cisco',388],['Goldman Sachs',356],['Walmart',344],['Twitter',334],
+          ['Nvidia',298],['Stripe',289],['PayPal',267],['Lyft',245],
+          ['eBay',233],['VMware',201],['Palantir',187],['Snap',178],
+          ['Dropbox',156],['Spotify',143],['Accenture',134],['Yelp',98],
+          ['Zoom',87],['Robinhood',64],['Coinbase',52],['Databricks',48],
+          ['Figma',39],['Instacart',33],['Notion',28],['Reddit',24],
+          ['Twilio',20],['Qualtrics',14],['Xerox',11],['Kraken',9],
+          ['Juniper Networks',6],['Wayfair',5],['Accolite',3],['Verkada',2],
+          ['6sense',7],['1kosmos',1],
+        ];
+        var companies = raw.map(function (r) {
+          return {
+            slug: r[0].toLowerCase().replace(/[^a-z0-9]/g, '-'),
+            name: r[0],
+            problemCount: r[1],
+            mockEligible: r[1] >= 20,
+          };
+        });
+        var starred = ['google', 'airbnb', 'stripe'];
+
         var overrides = {
           GetAuthStatus: function () {
             return Promise.resolve({ openRouterConfigured: true, elevenLabsConfigured: true, googleConfigured: true });
@@ -26,12 +51,20 @@
               model: "google/gemini-2.5-flash", captureIntervalMs: 3000,
               sessionLimitMinutes: 30, softWarningMinutes: 25, voiceSpeed: 1,
               ttsProvider: "google", voiceId: "stub-eleven-voice",
-              googleVoiceId: "en-US-Chirp3-HD-Puck", pushToTalkEnabled: true, pushToTalkKey: "RightAlt",
+              googleVoiceId: "en-US-Chirp3-HD-Puck", pushToTalkEnabled: false, pushToTalkKey: "RightAlt",
+              lastCompany: "", lastDifficulty: "All",
             });
           },
           GetAppVersion: function () { return Promise.resolve("dev"); },
           GetHotkeyStatus: function () { return Promise.resolve({ goos: "darwin", hookEnabled: true }); },
           ListDisplays: function () { return Promise.resolve([{ index: 0, name: "Display 1", width: 1920, height: 1080, x: 0, y: 0 }]); },
+          ListCompanies: function () { return Promise.resolve(companies); },
+          ListStarredCompanies: function () { return Promise.resolve(starred.slice()); },
+          SetCompanyStarred: function (slug, on) {
+            if (on) { if (starred.indexOf(slug) < 0) starred.push(slug); }
+            else { starred = starred.filter(function (s) { return s !== slug; }); }
+            return Promise.resolve(null);
+          },
         };
         window.go = { main: { App: new Proxy({}, { get: function (_t, name) {
           return overrides[name] || function () { return Promise.resolve(null); };

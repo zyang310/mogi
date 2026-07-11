@@ -1,12 +1,15 @@
 /* ── Post-interview debrief scorecard ─────────────────────────────────────────
-   Rendered inside the expanded history card's "Debrief" tab. Two columns:
-   narrative (verdict, summary, strengths/improvements) on the left, visuals
-   (metric bars + radar chart) on the right. Reuses MD3 tokens (style.css :root). */
+   Rendered inside the expanded history entry's "Debrief" tab. A hero (score ring
+   + verdict + summary) leads, then metrics/radar and strengths/improvements each
+   split across a hairline divider — no boxed sub-panels, matching the timeline's
+   "hairline, no card fill" language. --tone-color (set here from the verdict)
+   drives the ring, pill, and metric/radar fill; falls back to --primary so the
+   component still renders sanely if ever used outside a tone-setting ancestor. */
 .debrief {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 24px;
+  gap: 24px;
+  padding: 22px;
 }
 
 .debrief-status {
@@ -20,58 +23,81 @@
   color: var(--error);
 }
 
-.debrief-body {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 32px;
+.debrief-divider {
+  height: 1px;
+  background-color: var(--level-1-border);
 }
 
-.debrief-narrative,
-.debrief-visuals {
+.debrief-vdivider {
+  width: 1px;
+  align-self: stretch;
+  flex-shrink: 0;
+  background-color: var(--level-1-border);
+}
+
+/* ── Hero: score ring + verdict + summary ───────────────────────────────── */
+.debrief-hero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.debrief-ring {
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s;
+}
+
+.debrief-ring-inner {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background-color: var(--surface-container-low);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.debrief-ring-score {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1;
+}
+
+.debrief-ring-label {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+
+.debrief-hero-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
   min-width: 0;
-}
-
-/* ── Verdict + summary ──────────────────────────────────────────────────────── */
-.debrief-head {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .debrief-verdict {
   align-self: flex-start;
-  padding: 4px 12px;
-  border-radius: 6px;
-  font-size: 13px;
+  padding: 4px 13px;
+  border-radius: 8px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  border: 1px solid transparent;
-}
-
-.debrief-verdict.positive {
-  background-color: color-mix(in srgb, var(--secondary) 14%, transparent);
-  color: var(--secondary);
-  border-color: color-mix(in srgb, var(--secondary) 30%, transparent);
-}
-
-.debrief-verdict.lean {
-  background-color: color-mix(in srgb, var(--primary) 14%, transparent);
-  color: var(--primary);
-  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-}
-
-.debrief-verdict.negative {
-  background-color: color-mix(in srgb, var(--error) 14%, transparent);
-  color: var(--error);
-  border-color: color-mix(in srgb, var(--error) 30%, transparent);
-}
-
-.debrief-verdict.neutral {
-  background-color: var(--level-1-bg);
-  color: var(--on-surface-variant);
+  letter-spacing: 0.02em;
+  color: var(--tone-color, var(--primary));
+  background-color: color-mix(in srgb, var(--tone-color, var(--primary)) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone-color, var(--primary)) 35%, transparent);
 }
 
 .debrief-summary {
@@ -81,63 +107,27 @@
   color: var(--on-surface-variant);
 }
 
-/* ── Strengths / improvements ───────────────────────────────────────────────── */
-.debrief-list-head {
+/* ── Split rows: metrics|radar and strengths|improve ────────────────────── */
+.debrief-split-row {
+  display: flex;
+  align-items: stretch;
+  gap: 30px;
+}
+
+.debrief-metrics,
+.debrief-radar-panel,
+.debrief-list {
+  flex: 1;
+  min-width: 0;
+}
+
+.debrief-radar-panel {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  justify-content: center;
 }
 
-.debrief-list-head .material-symbols-outlined {
-  font-size: 18px;
-}
-
-.debrief-list-head.positive {
-  color: var(--secondary);
-}
-
-.debrief-list-head.improve {
-  color: var(--primary);
-}
-
-.debrief-list ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.debrief-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--on-surface-variant);
-}
-
-.debrief-item .material-symbols-outlined {
-  font-size: 16px;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.debrief-item.positive .material-symbols-outlined {
-  color: var(--secondary);
-}
-
-.debrief-item.improve .material-symbols-outlined {
-  color: var(--primary);
-}
-
-/* ── Performance metrics (glow bars) ────────────────────────────────────────── */
+/* ── Performance metrics (fill bars) ────────────────────────────────────── */
 .debrief-section-head {
   margin: 0 0 14px;
   font-size: 12px;
@@ -150,13 +140,13 @@
 .debrief-metrics-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 11px;
 }
 
 .debrief-metric {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .debrief-metric-top {
@@ -174,45 +164,99 @@
   color: var(--on-surface-variant);
 }
 
-.debrief-bar {
-  display: flex;
-  gap: 4px;
-  height: 6px;
-}
-
-.debrief-seg {
-  flex: 1;
+.debrief-bar-track {
+  height: 7px;
   border-radius: 9999px;
   background-color: var(--surface-container-highest);
+  overflow: hidden;
 }
 
-.debrief-seg.filled {
-  background-color: var(--primary);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 40%, transparent);
+.debrief-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+  background-color: var(--tone-color, var(--primary));
+  transition: width 0.3s ease;
 }
 
-/* ── Radar panel ────────────────────────────────────────────────────────────── */
-.debrief-radar-panel {
+/* ── Strengths / improvements ───────────────────────────────────────────── */
+.debrief-list-head {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 20px;
-  border: 1px solid var(--outline-variant);
-  border-radius: 16px;
-  background-color: var(--surface-container);
+  gap: 7px;
+  margin: 0 0 11px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.debrief-list-head .material-symbols-outlined {
+  font-size: 16px;
+}
+
+/* Fixed categories, not tied to --tone-color: a strength reads positive and an
+   improvement reads "worth attention" regardless of the overall verdict. */
+.debrief-list-head.positive {
+  color: var(--secondary);
+}
+
+.debrief-list-head.improve {
+  color: var(--warning);
+}
+
+.debrief-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.debrief-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+}
+
+.debrief-item .material-symbols-outlined {
+  font-size: 15px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.debrief-item.positive .material-symbols-outlined {
+  color: var(--secondary);
+}
+
+.debrief-item.improve .material-symbols-outlined {
+  color: var(--warning);
 }
 
 .debrief-footnote {
   margin: 0;
-  font-size: 12px;
+  font-size: 11.5px;
   font-style: italic;
   color: var(--on-surface-variant);
 }
 
-/* Stack the two columns on narrow windows. */
+/* Stack the split rows and hero on narrow windows. */
 @media (max-width: 720px) {
-  .debrief-body {
-    grid-template-columns: 1fr;
-    gap: 24px;
+  .debrief-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .debrief-split-row {
+    flex-direction: column;
+  }
+
+  .debrief-vdivider {
+    width: 100%;
+    height: 1px;
   }
 }

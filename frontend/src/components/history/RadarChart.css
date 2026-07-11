@@ -18,16 +18,16 @@
 }
 
 .radar-shape {
-  fill: var(--primary);
+  fill: var(--tone-color, var(--primary));
   fill-opacity: 0.2;
-  stroke: var(--primary);
+  stroke: var(--tone-color, var(--primary));
   stroke-width: 1.2;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--primary) 50%, transparent));
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--tone-color, var(--primary)) 50%, transparent));
 }
 
 .radar-dot {
-  fill: var(--primary);
+  fill: var(--tone-color, var(--primary));
 }
 
 .radar-label {

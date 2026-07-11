@@ -1,0 +1,110 @@
+/* ── Transcript turn: avatar + bubble(s) ──────────────────────────────────
+   Interviewer left-aligned (neutral avatar), candidate right-aligned (a tint of
+   the app's fixed secondary accent — not the debrief's dynamic verdict tone,
+   since no verdict exists yet mid-conversation). A candidate's fenced code
+   renders as its own dark, theme-invariant panel instead of literal backticks. */
+.transcript-row {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+}
+
+.transcript-row.user {
+  flex-direction: row-reverse;
+}
+
+.transcript-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transcript-avatar .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.transcript-avatar.assistant {
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+}
+
+.transcript-avatar.user {
+  background: color-mix(in srgb, var(--secondary) 18%, transparent);
+  color: var(--secondary);
+}
+
+.transcript-bubbles {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  max-width: 80%;
+}
+
+.transcript-row.user .transcript-bubbles {
+  align-items: flex-end;
+}
+
+.transcript-bubble {
+  width: fit-content;
+  max-width: 100%;
+  padding: 11px 15px;
+  border-radius: 4px 14px 14px 14px;
+  background-color: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+}
+
+.transcript-bubble.user {
+  border-radius: 14px 4px 14px 14px;
+  background-color: color-mix(in srgb, var(--secondary) 9%, var(--surface-container-low));
+  border-color: transparent;
+}
+
+.transcript-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  margin-bottom: 5px;
+}
+
+.transcript-bubble.user .transcript-label {
+  color: var(--secondary);
+  text-align: right;
+}
+
+.transcript-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--on-surface);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Deliberately theme-invariant (--code-panel-* tokens): reads like an
+   editor/terminal regardless of the app's light/dark mode. */
+.transcript-code {
+  width: 100%;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background-color: var(--code-panel-bg);
+  overflow-x: auto;
+}
+
+.transcript-code code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--code-panel-fg);
+  white-space: pre;
+}

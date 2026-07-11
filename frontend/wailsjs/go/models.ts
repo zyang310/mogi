@@ -376,6 +376,7 @@ export namespace models {
 	    messageCount: number;
 	    company: string;
 	    mode: string;
+	    debrief?: Debrief;
 	
 	    static createFrom(source: any = {}) {
 	        return new SessionSummary(source);
@@ -392,6 +393,7 @@ export namespace models {
 	        this.messageCount = source["messageCount"];
 	        this.company = source["company"];
 	        this.mode = source["mode"];
+	        this.debrief = this.convertValues(source["debrief"], Debrief);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

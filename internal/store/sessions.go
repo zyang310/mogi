@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -49,11 +50,12 @@ func (db *DB) EndSession(id string) error {
 
 // ListSessions returns a summary of all sessions, newest first. EndedAt,
 // ProblemTitle, and Difficulty may be unset for in-progress or unlabeled sessions;
-// Company and Mode are set only for Company Practice sessions.
+// Company and Mode are set only for Company Practice sessions. Debrief is decoded
+// from the cached JSON column when present — a plain read, never a generation.
 func (db *DB) ListSessions() ([]models.SessionSummary, error) {
 	rows, err := db.conn.Query(`
 		SELECT s.id, s.model, s.started_at, s.ended_at, s.problem_title, s.difficulty,
-		       s.company, s.mode, COUNT(m.id) AS msg_count
+		       s.company, s.mode, s.debrief, COUNT(m.id) AS msg_count
 		FROM sessions s
 		LEFT JOIN messages m ON m.session_id = s.id
 		GROUP BY s.id
@@ -68,8 +70,8 @@ func (db *DB) ListSessions() ([]models.SessionSummary, error) {
 	for rows.Next() {
 		var s models.SessionSummary
 		var startedAt string
-		var endedAt, problemTitle, difficulty, company, mode sql.NullString
-		if err := rows.Scan(&s.ID, &s.Model, &startedAt, &endedAt, &problemTitle, &difficulty, &company, &mode, &s.MessageCount); err != nil {
+		var endedAt, problemTitle, difficulty, company, mode, debrief sql.NullString
+		if err := rows.Scan(&s.ID, &s.Model, &startedAt, &endedAt, &problemTitle, &difficulty, &company, &mode, &debrief, &s.MessageCount); err != nil {
 			return nil, fmt.Errorf("store: scan session row: %w", err)
 		}
 		s.StartedAt = parseDBTime(startedAt)
@@ -82,6 +84,14 @@ func (db *DB) ListSessions() ([]models.SessionSummary, error) {
 		s.Difficulty = difficulty.String
 		s.Company = company.String
 		s.Mode = mode.String
+		if debrief.Valid && debrief.String != "" {
+			var d models.Debrief
+			if jsonErr := json.Unmarshal([]byte(debrief.String), &d); jsonErr == nil {
+				s.Debrief = &d
+			}
+			// A corrupt cache just means this row shows no debrief — GetDebrief
+			// will regenerate it on demand, same as today.
+		}
 		out = append(out, s)
 	}
 	return out, rows.Err()

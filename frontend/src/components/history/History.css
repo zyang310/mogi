@@ -1,6 +1,8 @@
 /* ── Session History page ─────────────────────────────────────────────────
-   Full-page history: a centered column of expandable session cards. Owns its
-   own vertical scroll since .app-content clips overflow (mirrors .settings-page). */
+   Full-page history: a centered timeline of sessions grouped by recency, hung
+   off a hairline rail with no card fill (reads like a journal, not a table).
+   Owns its own vertical scroll since .app-content clips overflow (mirrors
+   .settings-page). */
 .history-page {
   flex: 1;
   min-height: 0;
@@ -10,10 +12,18 @@
 
 .history-inner {
   width: 100%;
-  max-width: 880px;
+  max-width: 940px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Header: title/subtitle + at-a-glance stats ─────────────────────────── */
+.history-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 24px;
 }
 
@@ -31,11 +41,34 @@
   margin: 8px 0 0;
 }
 
-/* ── List ─────────────────────────────────────────────────────────────────── */
-.history-list {
+.history-stats {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: baseline;
+  gap: 24px;
+  flex-shrink: 0;
+}
+
+.history-stat {
+  text-align: right;
+}
+
+.history-stat-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1.2;
+}
+
+.history-stat-value.accent {
+  color: var(--secondary);
+}
+
+.history-stat-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
 }
 
 /* ── Status + empty states ──────────────────────────────────────────────────── */
@@ -76,4 +109,39 @@
   max-width: 360px;
   font-size: 14px;
   color: var(--on-surface-variant);
+}
+
+/* ── Timeline: date groups, each a hairline rail of entries ─────────────── */
+.history-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.history-group-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  margin-bottom: 20px;
+}
+
+.history-rail {
+  position: relative;
+  padding-left: 30px;
+  border-left: 1.5px solid var(--level-1-border);
+  display: flex;
+  flex-direction: column;
+  /* Pairs with each entry's 20px padding-bottom so the between-session hairline
+     sits centred in a symmetric 20/20 gutter. */
+  gap: 20px;
+}
+
+@media (max-width: 560px) {
+  .history-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

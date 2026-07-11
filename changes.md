@@ -11,7 +11,8 @@ stretch goals:
 
 
 ui change:
-    1. redesign company tab and history, they are too repetitive currently and too mundane with the repeated boxes
+    1. redesign the page when you click into company
 
-    2. Make Nav pill bar more responsive and cooler to use
+
+
 

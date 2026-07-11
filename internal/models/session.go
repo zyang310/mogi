@@ -41,6 +41,12 @@ type SessionSummary struct {
 	MessageCount int        `json:"messageCount"`
 	Company      string     `json:"company"`
 	Mode         string     `json:"mode"`
+	// Debrief is the cached post-interview scorecard, populated straight from
+	// SQLite when one already exists — nil otherwise. This never triggers
+	// generation (listing sessions still costs zero AI tokens); it just lets the
+	// history view show a verdict/score for sessions already reviewed at least
+	// once, without a per-row round trip.
+	Debrief *Debrief `json:"debrief,omitempty"`
 }
 
 // DebriefRubric scores the candidate on five interview dimensions, 1-5. A 0 means

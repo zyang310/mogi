@@ -31,6 +31,30 @@ export function formatDuration(startIso: string, endIso?: string | null): string
   return `${s}s`;
 }
 
+// groupByRecency buckets items (assumed already newest-first) into "This week"
+// (from the most recent Sunday, local time) and "Earlier". Empty buckets are
+// omitted, and a single "Earlier" bucket is returned unlabeled-free when nothing
+// falls in the current week — callers just render whatever comes back.
+export function groupByRecency<T>(
+  items: T[],
+  startedAt: (item: T) => string
+): { label: string; items: T[] }[] {
+  const now = new Date();
+  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+
+  const thisWeek: T[] = [];
+  const earlier: T[] = [];
+  for (const item of items) {
+    const d = new Date(startedAt(item));
+    (!isNaN(d.getTime()) && d >= startOfWeek ? thisWeek : earlier).push(item);
+  }
+
+  const groups: { label: string; items: T[] }[] = [];
+  if (thisWeek.length > 0) groups.push({ label: "This week", items: thisWeek });
+  if (earlier.length > 0) groups.push({ label: "Earlier", items: earlier });
+  return groups;
+}
+
 // prettyModel turns an OpenRouter id like "anthropic/claude-sonnet-4" into a
 // readable label like "Claude Sonnet 4". Falls back to the raw id. This is a
 // lightweight prettifier; the exact catalog names from ListAvailableModels could

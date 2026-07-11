@@ -44,6 +44,33 @@ function normalizeDifficulty(d?: string): Difficulty {
   return (DIFFICULTIES as string[]).includes(d ?? "") ? (d as Difficulty) : "All";
 }
 
+// Number of decorative monogram tints (see .co-tint-* in the CSS). A company's
+// tile colour is picked deterministically from its name so it stays stable.
+const TINT_COUNT = 6;
+
+// CompanyInfo augmented with the display fields the directory needs.
+interface DerivedCompany extends models.CompanyInfo {
+  mono: string; // single-letter monogram (first alphanumeric of the name)
+  letter: string; // A–Z bucket, or "#" for names starting with a digit
+  tint: number; // 0..TINT_COUNT-1 index into the tile-colour palette
+  countLabel: string;
+}
+
+// deriveCompany computes a company's monogram, its A–Z group letter, a stable
+// tint, and a pluralised count label — the fields the redesigned list renders.
+function deriveCompany(c: models.CompanyInfo): DerivedCompany {
+  const key = c.name.replace(/[^A-Za-z0-9]/g, "");
+  const first = (key[0] || "#").toUpperCase();
+  const letter = /[0-9]/.test(first) ? "#" : first;
+  return {
+    ...c,
+    mono: first,
+    letter,
+    tint: (c.name.charCodeAt(0) + c.name.length) % TINT_COUNT,
+    countLabel: `${c.problemCount} ${c.problemCount === 1 ? "problem" : "problems"}`,
+  };
+}
+
 // CompanyPractice is the Company Practice tab. It has two views: a searchable
 // company list, and — once a company is picked — that company's problem pool with
 // difficulty/sort controls plus a Mock Interview button. Browse filtering is
@@ -79,6 +106,21 @@ export default function CompanyPractice({
   // Top of the results area, scrolled into view on page change so each page starts
   // from the top rather than wherever the pager sat when clicked.
   const listTopRef = useRef<HTMLDivElement>(null);
+
+  // The scrolling directory viewport + its per-letter group headers, so the A–Z
+  // rail can bring a letter to the top of the viewport (only the viewport
+  // scrolls, never the whole page).
+  const dirScrollRef = useRef<HTMLDivElement>(null);
+  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  function jumpToLetter(letter: string) {
+    const scroller = dirScrollRef.current;
+    const el = groupRefs.current[letter];
+    if (!scroller || !el) return;
+    const delta =
+      el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTo({ top: scroller.scrollTop + delta - 12, behavior: "smooth" });
+  }
 
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState("");
@@ -190,20 +232,50 @@ export default function CompanyPractice({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingCompanies, companies]);
 
-  const visibleCompanies = useMemo(() => {
-    const q = companySearch.trim().toLowerCase();
-    if (!q) return companies;
-    return companies.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.slug.toLowerCase().includes(q)
-    );
-  }, [companies, companySearch]);
+  // Every company augmented with its monogram/letter/tint (see deriveCompany).
+  const derivedAll = useMemo(() => companies.map(deriveCompany), [companies]);
 
-  // Starred companies resolved against the loaded list — inherits its
-  // alphabetical order, and slugs that vanish after a dataset refresh simply
-  // never render (and can't be re-added, since toggles only exist on rows).
-  const starredCompanies = useMemo(
-    () => companies.filter((c) => starred.has(c.slug)),
-    [companies, starred]
+  // Search query, matched against name + slug. Empty query shows everything.
+  const query = companySearch.trim().toLowerCase();
+  const matchesQuery = (c: DerivedCompany) =>
+    !query || c.name.toLowerCase().includes(query) || c.slug.toLowerCase().includes(query);
+  const filtered = useMemo(
+    () => derivedAll.filter(matchesQuery),
+    // matchesQuery closes over `query`, so `query` is the real dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [derivedAll, query]
+  );
+
+  // The directory: filtered companies bucketed by first letter, buckets sorted
+  // A→Z with "#" (numeric names) last, each bucket alphabetised.
+  const groups = useMemo(() => {
+    const byLetter: Record<string, DerivedCompany[]> = {};
+    for (const c of filtered) (byLetter[c.letter] ??= []).push(c);
+    return Object.keys(byLetter)
+      .sort((a, b) => (a === "#" ? 1 : b === "#" ? -1 : a.localeCompare(b)))
+      .map((letter) => ({
+        letter,
+        items: byLetter[letter].slice().sort((a, b) => a.name.localeCompare(b.name)),
+      }));
+  }, [filtered]);
+
+  // The full A–Z rail (plus "#" when present): letters with no group render
+  // muted and are not clickable.
+  const railLetters = useMemo(() => {
+    const present = new Set(groups.map((g) => g.letter));
+    const rail = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((L) => ({
+      L,
+      present: present.has(L),
+    }));
+    if (present.has("#")) rail.push({ L: "#", present: true });
+    return rail;
+  }, [groups]);
+
+  // Starred companies (in the loaded list's order) for the pinned band. Slugs
+  // that vanish after a dataset refresh simply never render.
+  const starredItems = useMemo(
+    () => derivedAll.filter((c) => starred.has(c.slug)),
+    [derivedAll, starred]
   );
 
   const visibleProblems = useMemo(() => {
@@ -353,14 +425,61 @@ export default function CompanyPractice({
     }
   }
 
-  // renderCompanyRow renders one picker row: a star toggle and the open button
-  // as sibling buttons inside the <li> (nesting them would be invalid HTML).
-  function renderCompanyRow(c: models.CompanyInfo) {
+// renderStarCard renders one pinned "Starred" band card. The whole card opens
+  // the company; the corner badge is clickable to unstar it directly.
+  function renderStarCard(c: DerivedCompany) {
+    return (
+      <div
+        key={c.slug}
+        className="co-star-card"
+        onClick={() => openCompany(c)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openCompany(c);
+          }
+        }}
+      >
+        <span className="co-tile-wrap">
+          <span className={`co-tile co-tint-${c.tint}`}>{c.mono}</span>
+          <button
+            className="co-star-badge"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleStar(c.slug);
+            }}
+            aria-label={`Unstar ${c.name}`}
+            title="Unstar"
+          >
+            <span className="material-symbols-outlined">star</span>
+          </button>
+        </span>
+        <span className="co-star-card-text">
+          <span className="co-star-card-name">{c.name}</span>
+          <span className="co-card-count">{c.countLabel}</span>
+        </span>
+      </div>
+    );
+  }
+
+  // renderDirCard renders one directory card: an open button (tile + name +
+  // count) and a sibling star toggle. They are siblings, not nested — a
+  // <button> inside a <button> is invalid HTML.
+  function renderDirCard(c: DerivedCompany) {
     const isStarred = starred.has(c.slug);
     return (
-      <li key={c.slug} className="company-row">
+      <div key={c.slug} className="co-card">
+        <button className="co-card-open" onClick={() => openCompany(c)}>
+          <span className={`co-tile co-tile-sm co-tint-${c.tint}`}>{c.mono}</span>
+          <span className="co-card-text">
+            <span className="co-card-name">{c.name}</span>
+            <span className="co-card-count">{c.countLabel}</span>
+          </span>
+        </button>
         <button
-          className={`company-icon-btn company-star-btn${isStarred ? " starred" : ""}`}
+          className={`co-card-star${isStarred ? " starred" : ""}`}
           aria-pressed={isStarred}
           aria-label={`${isStarred ? "Unstar" : "Star"} ${c.name}`}
           title={isStarred ? "Unstar" : "Star"}
@@ -368,16 +487,7 @@ export default function CompanyPractice({
         >
           <span className="material-symbols-outlined">star</span>
         </button>
-        <button className="company-row-main" onClick={() => openCompany(c)}>
-          <span className="company-row-name">{c.name}</span>
-          <span className="company-row-count">
-            {c.problemCount} {c.problemCount === 1 ? "problem" : "problems"}
-          </span>
-          <span className="material-symbols-outlined company-row-arrow">
-            chevron_right
-          </span>
-        </button>
-      </li>
+      </div>
     );
   }
 
@@ -386,22 +496,32 @@ export default function CompanyPractice({
       <div className="company-inner">
         {!selected ? (
           <>
-            <header className="company-head">
-              <h1>Company Practice</h1>
-              <p>
-                Practice for a specific company — pick a real interview-frequency
-                problem, or run a mock interview.
-              </p>
+            <header className="company-head co-head">
+              <div>
+                <h1>Company Practice</h1>
+                <p>
+                  Practice for a specific company — pick a real interview-frequency
+                  problem, or run a mock interview.
+                </p>
+              </div>
+              {!loadingCompanies && !companiesError && (
+                <span className="co-count">
+                  {companies.length} {companies.length === 1 ? "company" : "companies"}
+                </span>
+              )}
             </header>
 
-            <input
-              type="text"
-              className="settings-input company-search"
-              placeholder="Search companies…"
-              value={companySearch}
-              onChange={(e) => setCompanySearch(e.target.value)}
-              disabled={loadingCompanies || !!companiesError}
-            />
+            <div className="co-search-wrap">
+              <span className="material-symbols-outlined co-search-icon">search</span>
+              <input
+                type="text"
+                className="co-search"
+                placeholder="Search companies…"
+                value={companySearch}
+                onChange={(e) => setCompanySearch(e.target.value)}
+                disabled={loadingCompanies || !!companiesError}
+              />
+            </div>
 
             {starError && <p className="company-status error">{starError}</p>}
 
@@ -409,27 +529,82 @@ export default function CompanyPractice({
               <p className="company-status">Loading companies…</p>
             ) : companiesError ? (
               <p className="company-status error">{companiesError}</p>
-            ) : visibleCompanies.length === 0 ? (
-              <p className="company-status">No companies match your search.</p>
-            ) : companySearch.trim() === "" && starredCompanies.length > 0 ? (
-              // Pinned Starred section, then the full list. Starred rows appear
-              // in both; the shared Set keeps the two copies in sync.
+            ) : (
               <>
-                <div className="company-section">
-                  <h2 className="company-section-label">Starred</h2>
-                  <ul className="company-list">
-                    {starredCompanies.map(renderCompanyRow)}
-                  </ul>
-                </div>
-                <div className="company-section">
-                  <h2 className="company-section-label">All companies</h2>
-                  <ul className="company-list">{companies.map(renderCompanyRow)}</ul>
+                {/* Pinned Starred band — a persistent favourites shelf. It always
+                    shows (search filters only the directory below), so searching
+                    never hides a starred company. Starred companies also appear in
+                    the directory; the shared Set keeps the two in sync. */}
+                {starredItems.length > 0 && (
+                  <div className="co-band">
+                    <div className="co-label">
+                      <span className="material-symbols-outlined co-label-star">star</span>
+                      <span className="co-label-text">Starred</span>
+                      {!query && <span className="co-label-hint">— jump back in</span>}
+                      <span className="co-label-rule" />
+                    </div>
+                    <div className="co-band-grid">{starredItems.map(renderStarCard)}</div>
+                  </div>
+                )}
+
+                <div className="co-directory">
+                  <div className="co-label">
+                    <span className="co-label-text">All companies</span>
+                    <span className="co-label-rule" />
+                  </div>
+
+                  {filtered.length === 0 ? (
+                    <p className="company-status">
+                      {query
+                        ? "No companies match your search."
+                        : "No companies available."}
+                    </p>
+                  ) : (
+                    <div className="co-scroll-wrap">
+                      <div className="co-scroll" ref={dirScrollRef}>
+                        {query ? (
+                          // Search: a flat grid of matches (no rail / letter groups).
+                          <div className="co-grid">{filtered.map(renderDirCard)}</div>
+                        ) : (
+                          <div className="co-scroll-inner">
+                            <div className="co-rail">
+                              {railLetters.map((r) => (
+                                <span
+                                  key={r.L}
+                                  className={`co-rail-letter${r.present ? "" : " absent"}`}
+                                  onClick={r.present ? () => jumpToLetter(r.L) : undefined}
+                                >
+                                  {r.L}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="co-groups">
+                              {groups.map((g) => (
+                                <div
+                                  key={g.letter}
+                                  className="co-group"
+                                  ref={(el) => {
+                                    groupRefs.current[g.letter] = el;
+                                  }}
+                                >
+                                  <div className="co-group-head">
+                                    <span className="co-group-letter">{g.letter}</span>
+                                    <span className="co-label-rule" />
+                                  </div>
+                                  <div className="co-grid">
+                                    {g.items.map(renderDirCard)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="co-fade" />
+                    </div>
+                  )}
                 </div>
               </>
-            ) : (
-              <ul className="company-list">
-                {visibleCompanies.map(renderCompanyRow)}
-              </ul>
             )}
           </>
         ) : (
