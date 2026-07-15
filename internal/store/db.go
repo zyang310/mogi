@@ -59,8 +59,10 @@ func (db *DB) Path() string {
 
 // ClearAll deletes every row from every table in one transaction, resetting the
 // app to a first-run state: sessions, transcripts, preferences (which also hold
-// the API keys), and starred companies. The schema and file are left in place —
-// GetPreferences falls back to defaults and GetAPIKey returns empty. Messages go
+// the API keys — both the BYOK keys and the managed test-account rows, so a full
+// wipe also signs the device out of the managed tier), and starred companies.
+// The schema and file are left in place — GetPreferences falls back to defaults
+// (KeyMode back to "byok") and GetAPIKey/GetManagedKey return empty. Messages go
 // first to respect the foreign key into sessions.
 func (db *DB) ClearAll() error {
 	tx, err := db.conn.Begin()

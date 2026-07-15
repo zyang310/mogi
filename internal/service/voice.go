@@ -79,6 +79,21 @@ func (v *Voice) activeTTS() (TTS, string, error) {
 	eleven := v.providers.ElevenLabs()
 	google := v.providers.Google()
 
+	// Managed mode forces Google TTS. The managed ElevenLabs key is STT-scoped, so
+	// selecting EL TTS would fail at the API with a permission error rather than
+	// fall back (the client is non-nil) — hiding it is correctness, not polish.
+	// The saved voice is also clamped to the cost-allowed tiers; a premium voice
+	// degrades to the Neural2 default.
+	if prefs.KeyMode == "managed" {
+		if google == nil {
+			return nil, "", fmt.Errorf("Google API key not configured — add it in Settings")
+		}
+		if !managedGoogleVoiceAllowed(googleVoice) {
+			googleVoice = defaultGoogleVoiceID
+		}
+		return google, googleVoice, nil
+	}
+
 	if prefs.TTSProvider == "elevenlabs" {
 		if eleven != nil {
 			return eleven, elevenVoice, nil
@@ -158,13 +173,44 @@ func (v *Voice) Synthesize(ctx context.Context, text string) (string, error) {
 }
 
 // Voices returns the active provider's available voices for the Settings
-// picker.
+// picker. In managed mode the Google catalog is filtered to the cost-allowed
+// tiers, so the picker can't select a premium voice the backend would reject.
+// The backend guard in activeTTS is the source of truth; the Phase 2 tile-hiding
+// mirrors this.
 func (v *Voice) Voices(ctx context.Context) ([]models.Voice, error) {
 	provider, _, err := v.activeTTS()
 	if err != nil {
 		return nil, err
 	}
-	return provider.ListVoices(ctx)
+	voices, err := provider.ListVoices(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if prefs, _ := v.store.GetPreferences(); prefs.KeyMode == "managed" {
+		voices = filterManagedGoogleVoices(voices)
+	}
+	return voices, nil
+}
+
+// managedGoogleVoiceAllowed reports whether a Google voice id is within the
+// managed tier's cost ceiling: only the low-cost Neural2 and WaveNet families
+// are permitted. Premium tiers (Chirp HD, Studio, Polyglot) cost multiples more,
+// so an open picker on a developer-funded key would be an open wallet. Matching
+// is case-insensitive on the tier substring in the voice name.
+func managedGoogleVoiceAllowed(voiceID string) bool {
+	lower := strings.ToLower(voiceID)
+	return strings.Contains(lower, "neural2") || strings.Contains(lower, "wavenet")
+}
+
+// filterManagedGoogleVoices keeps only the voices allowed in managed mode.
+func filterManagedGoogleVoices(voices []models.Voice) []models.Voice {
+	filtered := make([]models.Voice, 0, len(voices))
+	for _, voice := range voices {
+		if managedGoogleVoiceAllowed(voice.ID) {
+			filtered = append(filtered, voice)
+		}
+	}
+	return filtered
 }
 
 // Preview synthesizes a short fixed phrase with the given voice via the active

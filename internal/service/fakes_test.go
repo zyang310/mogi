@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"mogi/internal/access"
 	"mogi/internal/ai"
 	"mogi/internal/hotkey"
 	"mogi/internal/models"
@@ -16,26 +17,35 @@ import (
 // fakeStore satisfies all four per-service store interfaces (InterviewStore,
 // HistoryStore, VoiceStore, SettingsStore) so one fake serves every test.
 type fakeStore struct {
-	getPreferences       func() (models.Preferences, error)
-	savePreferences      func(p models.Preferences) error
-	getAPIKey            func(provider string) (string, error)
-	setAPIKey            func(provider, value string) error
-	deleteAPIKey         func(provider string) error
-	createSession        func(id, problemID, model string) (models.Session, error)
-	endSession           func(id string) error
-	addMessage           func(msg models.Message) error
-	getMessages          func(sessionID string) ([]models.Message, error)
-	getSession           func(id string) (models.Session, error)
-	updateSessionMeta    func(id, title, difficulty, finalCode string) error
-	setSessionCompany    func(id, company, mode string) error
-	listSessions         func() ([]models.SessionSummary, error)
-	deleteSession        func(id string) error
-	getSessionFinalCode  func(id string) (string, error)
-	getSessionDebrief    func(id string) (string, error)
-	saveSessionDebrief   func(id, debrief string) error
-	listStarredCompanies func() ([]string, error)
-	setCompanyStarred    func(slug string, starred bool) error
-	clearAll             func() error
+	getPreferences        func() (models.Preferences, error)
+	savePreferences       func(p models.Preferences) error
+	getAPIKey             func(provider string) (string, error)
+	setAPIKey             func(provider, value string) error
+	deleteAPIKey          func(provider string) error
+	createSession         func(id, problemID, model string) (models.Session, error)
+	endSession            func(id string) error
+	addMessage            func(msg models.Message) error
+	getMessages           func(sessionID string) ([]models.Message, error)
+	getSession            func(id string) (models.Session, error)
+	updateSessionMeta     func(id, title, difficulty, finalCode string) error
+	setSessionCompany     func(id, company, mode string) error
+	listSessions          func() ([]models.SessionSummary, error)
+	deleteSession         func(id string) error
+	getSessionFinalCode   func(id string) (string, error)
+	getSessionDebrief     func(id string) (string, error)
+	saveSessionDebrief    func(id, debrief string) error
+	listStarredCompanies  func() ([]string, error)
+	setCompanyStarred     func(slug string, starred bool) error
+	clearAll              func() error
+	getManagedKey         func(provider string) (string, error)
+	setManagedKey         func(provider, value string) error
+	getManagedSession     func() (string, error)
+	setManagedSession     func(token string) error
+	getManagedEmail       func() (string, error)
+	setManagedEmail       func(email string) error
+	getManagedPinnedModel func() (string, error)
+	setManagedPinnedModel func(model string) error
+	deleteManagedData     func() error
 }
 
 func (f *fakeStore) GetPreferences() (models.Preferences, error) {
@@ -90,6 +100,69 @@ func (f *fakeStore) SetCompanyStarred(slug string, starred bool) error {
 func (f *fakeStore) ClearAll() error {
 	if f.clearAll != nil {
 		return f.clearAll()
+	}
+	return nil
+}
+
+func (f *fakeStore) GetManagedKey(provider string) (string, error) {
+	if f.getManagedKey != nil {
+		return f.getManagedKey(provider)
+	}
+	return "", nil
+}
+
+func (f *fakeStore) SetManagedKey(provider, value string) error {
+	if f.setManagedKey != nil {
+		return f.setManagedKey(provider, value)
+	}
+	return nil
+}
+
+func (f *fakeStore) GetManagedSession() (string, error) {
+	if f.getManagedSession != nil {
+		return f.getManagedSession()
+	}
+	return "", nil
+}
+
+func (f *fakeStore) SetManagedSession(token string) error {
+	if f.setManagedSession != nil {
+		return f.setManagedSession(token)
+	}
+	return nil
+}
+
+func (f *fakeStore) GetManagedEmail() (string, error) {
+	if f.getManagedEmail != nil {
+		return f.getManagedEmail()
+	}
+	return "", nil
+}
+
+func (f *fakeStore) SetManagedEmail(email string) error {
+	if f.setManagedEmail != nil {
+		return f.setManagedEmail(email)
+	}
+	return nil
+}
+
+func (f *fakeStore) GetManagedPinnedModel() (string, error) {
+	if f.getManagedPinnedModel != nil {
+		return f.getManagedPinnedModel()
+	}
+	return "", nil
+}
+
+func (f *fakeStore) SetManagedPinnedModel(model string) error {
+	if f.setManagedPinnedModel != nil {
+		return f.setManagedPinnedModel(model)
+	}
+	return nil
+}
+
+func (f *fakeStore) DeleteManagedData() error {
+	if f.deleteManagedData != nil {
+		return f.deleteManagedData()
 	}
 	return nil
 }
@@ -212,6 +285,35 @@ func (f *fakeAI) ListModels(_ context.Context) ([]models.Model, error) {
 		return f.listModels()
 	}
 	return nil, nil
+}
+
+// fakeAccess satisfies AccessClient so account tests never make HTTP calls.
+// Un-overridden calls succeed with zero values.
+type fakeAccess struct {
+	requestCode func(email, inviteCode string) error
+	verify      func(email, code string) (string, access.KeySet, error)
+	keys        func(token string) (access.KeySet, error)
+}
+
+func (f *fakeAccess) RequestCode(_ context.Context, email, inviteCode string) error {
+	if f.requestCode != nil {
+		return f.requestCode(email, inviteCode)
+	}
+	return nil
+}
+
+func (f *fakeAccess) Verify(_ context.Context, email, code string) (string, access.KeySet, error) {
+	if f.verify != nil {
+		return f.verify(email, code)
+	}
+	return "", access.KeySet{}, nil
+}
+
+func (f *fakeAccess) Keys(_ context.Context, token string) (access.KeySet, error) {
+	if f.keys != nil {
+		return f.keys(token)
+	}
+	return access.KeySet{}, nil
 }
 
 // fakeSpeech satisfies Speech (TTS + STT) for provider-resolution tests.

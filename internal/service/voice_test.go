@@ -94,6 +94,68 @@ func TestActiveTTSMatrix(t *testing.T) {
 	}
 }
 
+// TestManagedTTSForcesGoogle verifies managed mode forces Google TTS even when
+// the saved provider is ElevenLabs (the managed EL key is STT-scoped), keeps an
+// allowed saved voice, clamps a premium one to the Neural2 default, and errors
+// (no silent EL fallback) when Google isn't configured.
+func TestManagedTTSForcesGoogle(t *testing.T) {
+	eleven := &fakeSpeech{}
+	google := &fakeSpeech{}
+
+	v := voiceWith(models.Preferences{KeyMode: "managed", TTSProvider: "elevenlabs", GoogleVoiceID: "en-US-Neural2-C"}, eleven, google)
+	provider, voiceID, err := v.activeTTS()
+	if err != nil {
+		t.Fatalf("activeTTS() error: %v", err)
+	}
+	if provider != TTS(google) {
+		t.Error("managed mode must force Google TTS despite TTSProvider=elevenlabs")
+	}
+	if voiceID != "en-US-Neural2-C" {
+		t.Errorf("voice = %q, want the allowed saved voice kept", voiceID)
+	}
+
+	v = voiceWith(models.Preferences{KeyMode: "managed", GoogleVoiceID: "en-US-Chirp-HD-F"}, eleven, google)
+	if _, voiceID, _ := v.activeTTS(); voiceID != defaultGoogleVoiceID {
+		t.Errorf("premium saved voice = %q, want fallback to %q", voiceID, defaultGoogleVoiceID)
+	}
+
+	v = voiceWith(models.Preferences{KeyMode: "managed"}, eleven, nil)
+	if _, _, err := v.activeTTS(); err == nil {
+		t.Error("managed mode with no Google key should error, not fall back to ElevenLabs")
+	}
+}
+
+// TestManagedVoicesFiltersCatalog verifies the picker catalog is trimmed to the
+// cost-allowed tiers in managed mode, and left whole in BYOK mode.
+func TestManagedVoicesFiltersCatalog(t *testing.T) {
+	catalog := []models.Voice{
+		{ID: "en-US-Neural2-F", Name: "Neural2 F"},
+		{ID: "en-US-Wavenet-D", Name: "Wavenet D"},
+		{ID: "en-US-Chirp-HD-O", Name: "Chirp HD O"},
+		{ID: "en-US-Studio-M", Name: "Studio M"},
+	}
+	google := &fakeSpeech{listVoices: func() ([]models.Voice, error) { return catalog, nil }}
+
+	managed := voiceWith(models.Preferences{KeyMode: "managed"}, nil, google)
+	got, err := managed.Voices(context.Background())
+	if err != nil {
+		t.Fatalf("Voices() error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("managed catalog = %d voices, want 2 (Neural2 + Wavenet only): %+v", len(got), got)
+	}
+	for _, voice := range got {
+		if !managedGoogleVoiceAllowed(voice.ID) {
+			t.Errorf("managed catalog leaked a premium voice: %q", voice.ID)
+		}
+	}
+
+	byok := voiceWith(models.Preferences{KeyMode: "byok"}, nil, google)
+	if got, _ := byok.Voices(context.Background()); len(got) != len(catalog) {
+		t.Errorf("byok catalog = %d voices, want the full %d", len(got), len(catalog))
+	}
+}
+
 // TestActiveSTTPrefersScribe verifies the STT order: ElevenLabs Scribe when
 // configured, else Google, else a configuration error.
 func TestActiveSTTPrefersScribe(t *testing.T) {

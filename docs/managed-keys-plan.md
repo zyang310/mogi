@@ -4,8 +4,9 @@
 > redeems an **invite code + email OTP** and the app fetches developer-funded keys and inserts them
 > itself — sign in, and it just works. **BYOK stays a first-class equal mode**, untouched. The
 > backend is a single small "access service" whose auth/infra is deliberately the embryo of the
-> eventual paid tier. **Status: designed (2026-07-13), not implemented.**
+> eventual paid tier. **Status: Phase 0 (access service) implemented; app integration not started.**
 > *No payments in this phase — the developer eats a capped ~$20/month.*
+> Step-by-step build plan & progress → [managed-keys-implementation.md](managed-keys-implementation.md).
 
 ## Context
 

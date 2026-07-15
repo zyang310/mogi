@@ -2,6 +2,7 @@
 // Components should import from here, never from wailsjs/ directly.
 
 export {
+  ActivateTestAccount,
   CheckForUpdate,
   ClearAllLocalData,
   DeleteAPIKey,
@@ -29,12 +30,14 @@ export {
   OpenURL,
   PreviewVoice,
   QuitApp,
+  RequestTestCode,
   RevealDatabaseFile,
   SendMessage,
   SetAPIKey,
   SetCaptureRegion,
   SetCompanyStarred,
   SetOverlayExpanded,
+  SignOutTestAccount,
   SnapshotDisplay,
   StartCapture,
   StartCompanySession,

@@ -58,6 +58,10 @@ export namespace models {
 	    openRouterConfigured: boolean;
 	    elevenLabsConfigured: boolean;
 	    googleConfigured: boolean;
+	    keyMode: string;
+	    managedActive: boolean;
+	    managedEmail: string;
+	    pinnedModel: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AuthStatus(source);
@@ -68,6 +72,10 @@ export namespace models {
 	        this.openRouterConfigured = source["openRouterConfigured"];
 	        this.elevenLabsConfigured = source["elevenLabsConfigured"];
 	        this.googleConfigured = source["googleConfigured"];
+	        this.keyMode = source["keyMode"];
+	        this.managedActive = source["managedActive"];
+	        this.managedEmail = source["managedEmail"];
+	        this.pinnedModel = source["pinnedModel"];
 	    }
 	}
 	export class CompanyInfo {
@@ -322,6 +330,7 @@ export namespace models {
 	    captureIntervalMs: number;
 	    model: string;
 	    voiceSpeed: number;
+	    keyMode: string;
 	    ttsProvider: string;
 	    voiceId: string;
 	    googleVoiceId: string;
@@ -346,6 +355,7 @@ export namespace models {
 	        this.captureIntervalMs = source["captureIntervalMs"];
 	        this.model = source["model"];
 	        this.voiceSpeed = source["voiceSpeed"];
+	        this.keyMode = source["keyMode"];
 	        this.ttsProvider = source["ttsProvider"];
 	        this.voiceId = source["voiceId"];
 	        this.googleVoiceId = source["googleVoiceId"];

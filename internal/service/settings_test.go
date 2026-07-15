@@ -146,6 +146,127 @@ func TestAuthStatus(t *testing.T) {
 	}
 }
 
+// TestUpdateKeyModeFlipReresolves verifies a KeyMode flip re-resolves the live
+// registry to the other namespace, and that an ordinary Update (no mode change)
+// leaves the registry untouched.
+func TestUpdateKeyModeFlipReresolves(t *testing.T) {
+	st, ms := statefulStore()
+	ms.byokKeys = map[string]string{"openrouter": "byok-or"}
+	ms.managedKeys = map[string]string{"google": "mg-g"}
+	s, p, _, _ := settingsWith(st)
+
+	// Start resolved to the BYOK namespace, as NewApp's ApplyMode would.
+	applyKeyMode(st, p, ms.prefs)
+	if p.AI() == nil || p.Google() != nil {
+		t.Fatal("byok resolution: want AI live from the byok key, google empty")
+	}
+
+	// Flip to managed → registry re-resolves to the managed namespace.
+	managed := ms.prefs
+	managed.KeyMode = "managed"
+	if err := s.Update(context.Background(), managed); err != nil {
+		t.Fatalf("Update error: %v", err)
+	}
+	if p.AI() != nil || p.Google() == nil {
+		t.Error("after flip to managed: want google live from the managed key, openrouter empty")
+	}
+
+	// A non-flip Update must not re-resolve: seed a slot the store wouldn't
+	// resolve, then confirm it survives the save.
+	p.SetKey("elevenlabs", "sentinel")
+	if err := s.Update(context.Background(), managed); err != nil {
+		t.Fatalf("Update error: %v", err)
+	}
+	if p.ElevenLabs() == nil {
+		t.Error("an Update without a KeyMode flip must not re-resolve the registry")
+	}
+}
+
+// TestSetAPIKeyInManagedModeLeavesRegistry verifies BYOK key writes in managed
+// mode persist to the store but never touch the live (managed) registry.
+func TestSetAPIKeyInManagedModeLeavesRegistry(t *testing.T) {
+	st, ms := statefulStore()
+	ms.prefs.KeyMode = "managed"
+	s, p, _, _ := settingsWith(st)
+
+	if err := s.SetAPIKey("openrouter", "byok-or"); err != nil {
+		t.Fatalf("SetAPIKey error: %v", err)
+	}
+	if ms.byokKeys["openrouter"] != "byok-or" {
+		t.Error("SetAPIKey must persist the BYOK key even in managed mode")
+	}
+	if p.AI() != nil {
+		t.Error("SetAPIKey in managed mode must not activate the live client")
+	}
+
+	// A live managed client must survive a BYOK delete in managed mode.
+	p.SetKey("google", "managed-live")
+	if err := s.DeleteAPIKey("google"); err != nil {
+		t.Fatalf("DeleteAPIKey error: %v", err)
+	}
+	if p.Google() == nil {
+		t.Error("DeleteAPIKey in managed mode must not deactivate the managed client")
+	}
+}
+
+// TestClearAllSignsOutManaged verifies wiping local data signs the device out of
+// the managed tier: the managed client goes dead and AuthStatus reports byok.
+func TestClearAllSignsOutManaged(t *testing.T) {
+	st, ms := statefulStore()
+	ms.managedKeys = map[string]string{"openrouter": "sk"}
+	ms.session, ms.prefs.KeyMode = "tok", "managed"
+	st.clearAll = func() error { // the real ClearAll wipes the whole preferences table
+		ms.managedKeys = map[string]string{}
+		ms.byokKeys = map[string]string{}
+		ms.session, ms.email, ms.pinned = "", "", ""
+		ms.prefs = models.Preferences{KeyMode: "byok"}
+		return nil
+	}
+	s, p, _, _ := settingsWith(st)
+	p.SetKey("openrouter", "sk") // managed client was live
+
+	if err := s.ClearAllData(context.Background()); err != nil {
+		t.Fatalf("ClearAllData error: %v", err)
+	}
+	if p.AI() != nil {
+		t.Error("ClearAllData must deactivate the managed client")
+	}
+	if status := s.AuthStatus(); status.ManagedActive || status.KeyMode != "byok" {
+		t.Errorf("after ClearAllData, status = %+v, want signed out (byok)", status)
+	}
+}
+
+// TestAuthStatusManagedMode verifies that in managed mode the *Configured bools
+// reflect the managed namespace (not the empty BYOK one), and the managed
+// account fields are surfaced for the UI.
+func TestAuthStatusManagedMode(t *testing.T) {
+	st := &fakeStore{
+		getPreferences: func() (models.Preferences, error) {
+			return models.Preferences{KeyMode: "managed"}, nil
+		},
+		// BYOK namespace is empty; only the managed namespace has keys.
+		getAPIKey: func(string) (string, error) { return "", nil },
+		getManagedKey: func(provider string) (string, error) {
+			return "managed-" + provider, nil
+		},
+		getManagedSession:     func() (string, error) { return "tok", nil },
+		getManagedEmail:       func() (string, error) { return "tester@example.com", nil },
+		getManagedPinnedModel: func() (string, error) { return "google/gemini-2.5-flash", nil },
+	}
+	s, _, _, _ := settingsWith(st)
+
+	status := s.AuthStatus()
+	if !status.OpenRouterConfigured || !status.ElevenLabsConfigured || !status.GoogleConfigured {
+		t.Errorf("AuthStatus() = %+v, want all providers configured from the managed namespace", status)
+	}
+	if status.KeyMode != "managed" || !status.ManagedActive {
+		t.Errorf("AuthStatus() = %+v, want managed mode + active session", status)
+	}
+	if status.ManagedEmail != "tester@example.com" || status.PinnedModel != "google/gemini-2.5-flash" {
+		t.Errorf("AuthStatus() = %+v, want managed email + pinned model surfaced", status)
+	}
+}
+
 // TestSetCaptureRegion verifies the read-modify-write: the region fields change,
 // the rest of the preferences survive, and the capturer is retargeted.
 func TestSetCaptureRegion(t *testing.T) {

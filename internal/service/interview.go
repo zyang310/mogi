@@ -29,6 +29,7 @@ type Screen interface {
 // *store.DB satisfies it.
 type InterviewStore interface {
 	GetPreferences() (models.Preferences, error)
+	GetManagedPinnedModel() (string, error)
 	CreateSession(id, problemID, model string) (models.Session, error)
 	EndSession(id string) error
 	AddMessage(msg models.Message) error
@@ -79,6 +80,24 @@ func (s *Interview) ActiveID() string {
 	return s.active.session.ID
 }
 
+// resolveModel decides which model a new session runs on. In managed mode the
+// server-pinned model always wins — the tester can't pick, and the developer can
+// swap the whole cohort's model server-side with no app release. In BYOK mode an
+// explicit request wins, falling back to the user's saved default. A managed
+// account with an (unexpectedly) empty pin degrades to the same BYOK behaviour
+// rather than an empty model.
+func (s *Interview) resolveModel(requested string, prefs models.Preferences) string {
+	if prefs.KeyMode == "managed" {
+		if pinned, _ := s.store.GetManagedPinnedModel(); pinned != "" {
+			return pinned
+		}
+	}
+	if requested != "" {
+		return requested
+	}
+	return prefs.Model
+}
+
 // Start creates a new screen-driven interview session, initialises the
 // conversation history with the system prompt, and starts screen capture.
 // There is no problem to select — the AI reads the task from the captured
@@ -93,9 +112,7 @@ func (s *Interview) Start(ctx context.Context, model string) (models.Session, er
 	}
 
 	prefs, _ := s.store.GetPreferences()
-	if model == "" {
-		model = prefs.Model
-	}
+	model = s.resolveModel(model, prefs)
 
 	id := uuid.New().String()
 	// problem_id is unused in the screen-driven flow; "" satisfies NOT NULL.
@@ -290,7 +307,9 @@ func (s *Interview) startCompanyInterview(ctx context.Context, slug string, prob
 	}
 
 	prefs, _ := s.store.GetPreferences()
-	model := prefs.Model
+	// Company sessions take no requested model — resolveModel pins it in managed
+	// mode, else falls back to the saved default.
+	model := s.resolveModel("", prefs)
 
 	// problem_id (unused in the screen-driven flow) carries the company slug here
 	// as a harmless breadcrumb; the label lives in problem_title/difficulty.
@@ -353,9 +372,10 @@ func (s *Interview) extractSessionMeta(aiClient AI, sessionID, model, screenshot
 	defer cancel()
 
 	if model == "" {
-		// End had no in-memory session; fall back to the default model.
+		// End had no in-memory session; fall back to the resolved model (the
+		// pinned model in managed mode, else the saved default).
 		if prefs, err := s.store.GetPreferences(); err == nil {
-			model = prefs.Model
+			model = s.resolveModel("", prefs)
 		}
 		if model == "" {
 			return

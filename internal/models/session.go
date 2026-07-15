@@ -71,11 +71,25 @@ type Debrief struct {
 	Improvements []string      `json:"improvements"`
 }
 
-// AuthStatus reports which API providers are currently configured.
+// AuthStatus reports which API providers are currently configured, plus the
+// managed test-account state. The three *Configured bools reflect whichever key
+// namespace KeyMode selects, so the SetupPage gate and every provider check work
+// unchanged in managed mode.
 type AuthStatus struct {
 	OpenRouterConfigured bool `json:"openRouterConfigured"`
 	ElevenLabsConfigured bool `json:"elevenLabsConfigured"`
 	GoogleConfigured     bool `json:"googleConfigured"`
+
+	// KeyMode is the active mode ("byok" or "managed"). ManagedActive is true
+	// whenever a managed session token is present — independent of KeyMode, so the
+	// UI can offer "switch back to test account" after a user flips to BYOK without
+	// signing out. ManagedEmail and PinnedModel describe the managed account for
+	// display (empty when not signed in). No token or key ever crosses this
+	// boundary.
+	KeyMode       string `json:"keyMode"`
+	ManagedActive bool   `json:"managedActive"`
+	ManagedEmail  string `json:"managedEmail"`
+	PinnedModel   string `json:"pinnedModel"`
 }
 
 // Preferences holds user-configurable settings persisted in SQLite.
@@ -83,6 +97,12 @@ type Preferences struct {
 	CaptureIntervalMs int     `json:"captureIntervalMs"` // default 3000
 	Model             string  `json:"model"`             // default "google/gemini-2.5-flash"
 	VoiceSpeed        float64 `json:"voiceSpeed"`        // TTS playback rate, default 1.0 (range ~0.5–2.0)
+
+	// KeyMode selects which key namespace feeds the live provider registry:
+	// "byok" (default) uses the user's own pasted keys; "managed" uses the
+	// developer-funded keys fetched from the access service. It also gates
+	// managed-tier behaviour (pinned model, filtered voice catalog).
+	KeyMode string `json:"keyMode"` // "byok" (default) | "managed"
 
 	// Text-to-speech provider + the voice selected for each. Voices are
 	// provider-specific, so each provider remembers its own choice.

@@ -49,6 +49,40 @@ func TestStartGuardsDoubleStart(t *testing.T) {
 	}
 }
 
+// TestResolveModelPinning verifies managed mode pins the server model over any
+// request, while BYOK mode honours an explicit request then the saved default.
+// It drives the real Start chokepoint and reads back the session's model.
+func TestResolveModelPinning(t *testing.T) {
+	cases := []struct {
+		name      string
+		prefs     models.Preferences
+		pinned    string
+		requested string
+		want      string
+	}{
+		{"managed pins over request", models.Preferences{KeyMode: "managed", Model: "saved"}, "pinned-model", "requested", "pinned-model"},
+		{"managed empty pin falls back to request", models.Preferences{KeyMode: "managed", Model: "saved"}, "", "requested", "requested"},
+		{"byok explicit request wins", models.Preferences{KeyMode: "byok", Model: "saved"}, "pinned-model", "requested", "requested"},
+		{"byok no request uses saved default", models.Preferences{KeyMode: "byok", Model: "saved"}, "pinned-model", "", "saved"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			st := &fakeStore{
+				getPreferences:        func() (models.Preferences, error) { return c.prefs, nil },
+				getManagedPinnedModel: func() (string, error) { return c.pinned, nil },
+			}
+			s := interviewWith(st, &fakeAI{}, &fakeScreen{})
+			sess, err := s.Start(context.Background(), c.requested)
+			if err != nil {
+				t.Fatalf("Start() error: %v", err)
+			}
+			if sess.Model != c.want {
+				t.Errorf("session model = %q, want %q", sess.Model, c.want)
+			}
+		})
+	}
+}
+
 // TestSendGuards covers the two precondition errors: no active session, and no
 // AI provider configured.
 func TestSendGuards(t *testing.T) {

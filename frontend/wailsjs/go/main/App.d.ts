@@ -4,6 +4,8 @@ import {models} from '../models';
 import {hotkey} from '../models';
 import {capture} from '../models';
 
+export function ActivateTestAccount(arg1:string,arg2:string):Promise<models.AuthStatus>;
+
 export function CheckForUpdate():Promise<models.UpdateInfo>;
 
 export function ClearAllLocalData():Promise<void>;
@@ -58,6 +60,8 @@ export function PreviewVoice(arg1:string):Promise<string>;
 
 export function QuitApp():Promise<void>;
 
+export function RequestTestCode(arg1:string,arg2:string):Promise<void>;
+
 export function RevealDatabaseFile():Promise<void>;
 
 export function SendMessage(arg1:string):Promise<string>;
@@ -69,6 +73,8 @@ export function SetCaptureRegion(arg1:number,arg2:number,arg3:number,arg4:number
 export function SetCompanyStarred(arg1:string,arg2:boolean):Promise<void>;
 
 export function SetOverlayExpanded(arg1:boolean):Promise<void>;
+
+export function SignOutTestAccount():Promise<models.AuthStatus>;
 
 export function SnapshotDisplay(arg1:number):Promise<string>;
 

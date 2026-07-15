@@ -30,6 +30,7 @@ const (
 	keyPushToTalkKey       = "push_to_talk_key"
 	keyLastCompany         = "last_company"
 	keyLastDifficulty      = "last_difficulty"
+	keyKeyMode             = "key_mode"
 )
 
 // GetAPIKey retrieves a stored API key. provider is "openrouter", "elevenlabs",
@@ -74,6 +75,7 @@ func (db *DB) GetPreferences() (models.Preferences, error) {
 		SoftWarningMinutes:  25,
 		PushToTalkEnabled:   true,
 		PushToTalkKey:       "RightAlt", // mirrors hotkey.DefaultSpec (bare modifier; no macOS key beep)
+		KeyMode:             "byok",     // BYOK is the default, first-class mode
 	}
 
 	if v, err := db.getPref(keyCaptureIntervalMs); err == nil && v != "" {
@@ -146,6 +148,9 @@ func (db *DB) GetPreferences() (models.Preferences, error) {
 	if v, err := db.getPref(keyLastDifficulty); err == nil {
 		p.LastDifficulty = v
 	}
+	if v, err := db.getPref(keyKeyMode); err == nil && v != "" {
+		p.KeyMode = v
+	}
 	return p, nil
 }
 
@@ -203,7 +208,10 @@ func (db *DB) SavePreferences(p models.Preferences) error {
 	if err := db.setPref(keyLastCompany, p.LastCompany); err != nil {
 		return err
 	}
-	return db.setPref(keyLastDifficulty, p.LastDifficulty)
+	if err := db.setPref(keyLastDifficulty, p.LastDifficulty); err != nil {
+		return err
+	}
+	return db.setPref(keyKeyMode, p.KeyMode)
 }
 
 // getPref fetches a single preference value by key. Returns "" if not found.

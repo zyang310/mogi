@@ -46,6 +46,16 @@ func (a *App) OpenReleasePage(url string) error {
 	return nil
 }
 
+// emitManagedChanged notifies the frontend that the managed test-account state
+// changed during the launch refresh — keys rotated, or the device was signed out
+// because the account was revoked or the test phase ended. notice is a
+// human-readable message shown on sign-out, empty otherwise. The frontend
+// refetches AuthStatus + preferences on this event. Lives here because it drives
+// the Wails runtime.
+func (a *App) emitManagedChanged(notice string) {
+	runtime.EventsEmit(a.ctx, "managed:changed", notice)
+}
+
 // RevealDatabaseFile opens the OS file manager with the SQLite database selected,
 // so the user can back it up or delete it by hand from the Privacy screen. Uses
 // the native "reveal" verb per platform (Finder/Explorer select the file itself;

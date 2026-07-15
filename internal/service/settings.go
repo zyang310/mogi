@@ -14,6 +14,10 @@ type SettingsStore interface {
 	GetAPIKey(provider string) (string, error)
 	SetAPIKey(provider, value string) error
 	DeleteAPIKey(provider string) error
+	GetManagedKey(provider string) (string, error)
+	GetManagedSession() (string, error)
+	GetManagedEmail() (string, error)
+	GetManagedPinnedModel() (string, error)
 	GetPreferences() (models.Preferences, error)
 	SavePreferences(p models.Preferences) error
 	ListStarredCompanies() ([]string, error)
@@ -45,38 +49,58 @@ func NewSettings(store SettingsStore, providers *Providers, screen Screen, hk Ho
 	return &Settings{store: store, providers: providers, screen: screen, hotkey: hk}
 }
 
-// SetAPIKey stores an API key for the given provider ("openrouter",
-// "elevenlabs", or "google") and activates it immediately. No restart required.
+// SetAPIKey stores a BYOK API key for the given provider ("openrouter",
+// "elevenlabs", or "google"). In BYOK mode it activates the key immediately (no
+// restart). In managed mode the live registry is fed by the managed namespace,
+// so the key is persisted — ready for when the user switches back — without
+// disturbing the running managed clients.
 func (s *Settings) SetAPIKey(provider, key string) error {
 	if err := s.store.SetAPIKey(provider, key); err != nil {
 		return err
 	}
-	s.providers.SetKey(provider, key)
+	if !s.managedMode() {
+		s.providers.SetKey(provider, key)
+	}
 	return nil
 }
 
-// DeleteAPIKey removes the stored key for the given provider and deactivates
-// its client immediately, so STT/TTS provider resolution falls back to
-// whatever remains configured. No restart needed.
+// DeleteAPIKey removes the stored BYOK key for the given provider. In BYOK mode
+// it deactivates the client immediately, so STT/TTS provider resolution falls
+// back to whatever remains configured. In managed mode the registry is fed by
+// the managed namespace, so only the stored BYOK key is dropped; the running
+// managed clients are left alone.
 func (s *Settings) DeleteAPIKey(provider string) error {
 	if err := s.store.DeleteAPIKey(provider); err != nil {
 		return err
 	}
-	s.providers.SetKey(provider, "") // empty key deactivates the slot
+	if !s.managedMode() {
+		s.providers.SetKey(provider, "") // empty key deactivates the slot
+	}
 	return nil
 }
 
+// managedMode reports whether KeyMode is "managed" — i.e. the live registry is
+// fed by the managed namespace, so BYOK key writes must not touch it.
+func (s *Settings) managedMode() bool {
+	prefs, _ := s.store.GetPreferences()
+	return prefs.KeyMode == "managed"
+}
+
 // ClearAllData wipes every piece of local state — sessions, transcripts,
-// preferences, API keys, and starred companies — returning the app to a
-// first-run state. It then deactivates every provider client (their keys are
+// preferences, API keys (both BYOK and managed), and starred companies —
+// returning the app to a first-run state. Because the wipe drops the managed
+// rows and resets KeyMode to the "byok" default, it also signs the device out
+// of the managed tier. It then deactivates every provider client (their keys are
 // gone) and re-applies the now-default hotkey and capture region, so the running
-// app matches the reset store without a restart. Destructive and irreversible;
+// app matches the reset store without a restart. Emptying the registry is the
+// correct post-wipe state: byok mode with no keys. Destructive and irreversible;
 // callers gate it behind an explicit confirmation.
 func (s *Settings) ClearAllData(ctx context.Context) error {
 	if err := s.store.ClearAll(); err != nil {
 		return err
 	}
-	// Keys lived in the wiped preferences table — drop the live clients too.
+	// Both key namespaces lived in the wiped preferences table — drop the live
+	// clients too (managed and BYOK are both empty now, and the mode is byok).
 	for _, provider := range []string{"openrouter", "elevenlabs", "google"} {
 		s.providers.SetKey(provider, "")
 	}
@@ -86,16 +110,36 @@ func (s *Settings) ClearAllData(ctx context.Context) error {
 	return nil
 }
 
-// AuthStatus reports which API providers currently have keys configured. It
-// reads the key store — the source of truth — rather than the live registry.
+// AuthStatus reports which API providers currently have keys configured, plus
+// the managed test-account state. It reads the key store — the source of truth —
+// rather than the live registry. In managed mode the three *Configured bools
+// reflect the managed namespace, so the SetupPage gate passes on the fetched
+// keys; the managed session/email/pinned-model fields are reported regardless of
+// mode so the UI can surface "signed in to the test account" even after a switch
+// back to BYOK.
 func (s *Settings) AuthStatus() models.AuthStatus {
-	orKey, _ := s.store.GetAPIKey("openrouter")
-	elKey, _ := s.store.GetAPIKey("elevenlabs")
-	googleKey, _ := s.store.GetAPIKey("google")
+	prefs, _ := s.store.GetPreferences()
+
+	getKey := s.store.GetAPIKey
+	if prefs.KeyMode == "managed" {
+		getKey = s.store.GetManagedKey
+	}
+	orKey, _ := getKey("openrouter")
+	elKey, _ := getKey("elevenlabs")
+	googleKey, _ := getKey("google")
+
+	token, _ := s.store.GetManagedSession()
+	email, _ := s.store.GetManagedEmail()
+	pinnedModel, _ := s.store.GetManagedPinnedModel()
+
 	return models.AuthStatus{
 		OpenRouterConfigured: orKey != "",
 		ElevenLabsConfigured: elKey != "",
 		GoogleConfigured:     googleKey != "",
+		KeyMode:              prefs.KeyMode,
+		ManagedActive:        token != "",
+		ManagedEmail:         email,
+		PinnedModel:          pinnedModel,
 	}
 }
 
@@ -124,8 +168,16 @@ func (s *Settings) SetCompanyStarred(slug string, starred bool) error {
 // infrastructure. ctx must be the Wails context — the hotkey listener retains
 // it for emitting ptt events.
 func (s *Settings) Update(ctx context.Context, prefs models.Preferences) error {
+	old, _ := s.store.GetPreferences()
 	if err := s.store.SavePreferences(prefs); err != nil {
 		return err
+	}
+	// A KeyMode flip is the one preference change that swaps which key namespace
+	// feeds the live registry (this is how the frontend's "switch to my own keys"
+	// / "switch back" toggles land). Re-resolve only then, so an ordinary settings
+	// save never touches the providers.
+	if old.KeyMode != prefs.KeyMode {
+		applyKeyMode(s.store, s.providers, prefs)
 	}
 	// Keep the capturer in sync with any region/display change.
 	s.screen.SetRegion(prefs.CaptureDisplay, prefs.RegionX, prefs.RegionY, prefs.RegionW, prefs.RegionH)

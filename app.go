@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"time"
 
+	"mogi/internal/access"
 	"mogi/internal/capture"
 	"mogi/internal/hotkey"
 	"mogi/internal/models"
@@ -28,6 +31,7 @@ type App struct {
 	history   *service.History   // past-sessions service: list/read/delete + debrief
 	voice     *service.Voice     // speech service: STT/TTS resolution + audio conversion
 	settings  *service.Settings  // keys + preferences, incl. capturer/hotkey propagation
+	account   *service.Account   // managed test-account: activation, launch refresh, sign-out
 
 	winZoom zoomState // custom green-button window zoom toggle (see window.go)
 
@@ -48,6 +52,19 @@ func NewApp() (*App, error) {
 	hook := hotkey.New()
 	providers := service.NewProviders()
 	interview := service.NewInterview(db, providers, capturer)
+	settings := service.NewSettings(db, providers, capturer, hook)
+
+	// The access-service URL defaults to the deployed service; MOGI_ACCESS_URL
+	// overrides it for local runs against a dev service (see
+	// docs/managed-keys-implementation.md). The account service borrows
+	// settings.AuthStatus so activation/sign-out return the same status the
+	// frontend reads elsewhere.
+	accessURL := os.Getenv("MOGI_ACCESS_URL")
+	if accessURL == "" {
+		accessURL = access.DefaultURL
+	}
+	account := service.NewAccount(db, providers, access.NewClient(accessURL), settings.AuthStatus)
+
 	app := &App{
 		db:        db,
 		capturer:  capturer,
@@ -55,17 +72,15 @@ func NewApp() (*App, error) {
 		interview: interview,
 		history:   service.NewHistory(db, providers, interview.ActiveID),
 		voice:     service.NewVoice(db, providers),
-		settings:  service.NewSettings(db, providers, capturer, hook),
+		settings:  settings,
+		account:   account,
 	}
 
-	// Restore each provider's client from its persisted API key (if any).
-	for _, provider := range []string{"openrouter", "elevenlabs", "google"} {
-		if key, err := db.GetAPIKey(provider); err != nil {
-			log.Printf("warning: could not read %s key: %v", provider, err)
-		} else if key != "" {
-			providers.SetKey(provider, key)
-		}
-	}
+	// Resolve the live provider registry from the stored keys for the current
+	// KeyMode (managed or BYOK). Replaces the old per-provider restore loop: a
+	// returning managed tester comes up with their fetched keys live, a BYOK user
+	// exactly as before.
+	app.account.ApplyMode()
 
 	// Restore the saved capture region so on-demand captures honour it too.
 	app.settings.ApplySavedRegion()
@@ -77,6 +92,10 @@ func NewApp() (*App, error) {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.settings.ApplyHotkey(ctx)
+	// Refresh managed keys in the background: silent rotation for signed-in
+	// testers, revocation/kill-switch enforcement, offline grace. Never blocks
+	// startup; only a signed-in device hits the network.
+	go a.refreshManagedAccount()
 }
 
 // shutdown is called by Wails when the application is closing.
@@ -106,9 +125,53 @@ func (a *App) DeleteAPIKey(provider string) error {
 	return a.settings.DeleteAPIKey(provider)
 }
 
-// GetAuthStatus reports which API providers currently have keys configured.
+// GetAuthStatus reports which API providers currently have keys configured, plus
+// the managed test-account state.
 func (a *App) GetAuthStatus() models.AuthStatus {
 	return a.settings.AuthStatus()
+}
+
+// ---------------------------------------------------------------------------
+// Managed test account
+// ---------------------------------------------------------------------------
+
+// RequestTestCode validates a managed-tier invite code and emails the tester a
+// one-time verification code. Nothing changes locally until ActivateTestAccount.
+func (a *App) RequestTestCode(email, inviteCode string) error {
+	return a.account.RequestCode(a.ctx, email, inviteCode)
+}
+
+// ActivateTestAccount verifies the emailed code, inserts the developer-funded
+// managed keys, pins the model, switches to managed mode, and returns the fresh
+// auth status. The keys never reach the frontend — only the status does.
+func (a *App) ActivateTestAccount(email, otp string) (models.AuthStatus, error) {
+	return a.account.Activate(a.ctx, email, otp)
+}
+
+// SignOutTestAccount signs the device out of the managed tier — removing the
+// managed keys and session and switching back to BYOK, leaving any BYOK keys the
+// user pasted untouched — and returns the fresh auth status.
+func (a *App) SignOutTestAccount() (models.AuthStatus, error) {
+	return a.account.SignOut()
+}
+
+// refreshManagedAccount runs the launch-time managed key refresh in the
+// background: it re-fetches keys for a signed-in tester (silent rotation), signs
+// the device out if the account was revoked or the test phase ended, and keeps
+// cached keys on a transient failure. It emits "managed:changed" (see
+// window.go) only when something the UI cares about changed.
+func (a *App) refreshManagedAccount() {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	changed, notice, err := a.account.Refresh(ctx)
+	if err != nil {
+		log.Printf("managed: launch refresh: %v", err)
+		return
+	}
+	if changed {
+		a.emitManagedChanged(notice)
+	}
 }
 
 // ---------------------------------------------------------------------------
