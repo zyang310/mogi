@@ -1,0 +1,119 @@
+/* ── Managed test-account card (Settings → API Keys, managed mode) ──────────
+   Replaces the per-provider key cards while KeyMode is "managed": identity
+   row, the server-pinned model, and the two exits. Mirrors the apikey-card
+   compact layout so the pane reads the same in both modes. */
+
+.managed-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.managed-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Rounded icon tile, same footprint as .apikey-icon. */
+.managed-card-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.managed-card-icon .material-symbols-outlined {
+  font-size: 19px;
+  color: var(--secondary);
+  font-variation-settings: "FILL" 1;
+}
+
+.managed-card-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.managed-card-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--on-surface);
+}
+
+.managed-card-email {
+  margin: 2px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Green status pill, matching the configured apikey-status look. */
+.managed-card-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--secondary);
+  border: 1px solid color-mix(in srgb, var(--secondary) 50%, transparent);
+  background: color-mix(in srgb, var(--secondary) 10%, transparent);
+}
+
+.managed-card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--secondary);
+}
+
+/* Pinned-model line: the model is a server-side decision, shown not chosen. */
+.managed-card-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-container-high) 55%, transparent);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+}
+
+.managed-card-model .material-symbols-outlined {
+  font-size: 16px;
+  color: var(--on-surface-variant);
+}
+
+.managed-card-model code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--on-surface);
+}
+
+.managed-card-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.managed-card-footnote {
+  margin: 0;
+}

@@ -48,10 +48,16 @@ export default function VoiceSection({
   onCatalog,
   onOpenApiKeys,
 }: Props) {
+  // Managed test accounts speak with Google only: the shared ElevenLabs key is
+  // STT-scoped, so its TTS would 4xx. Branch on authStatus, not prefs — the
+  // backend's activeTTS guard is the source of truth; this is mirror-only.
+  const managed = authStatus.keyMode === "managed";
+
   // The provider actually in effect: the saved choice if its key exists, else
   // whichever provider is configured. Mirrors app.go's activeTTS fallback so the
   // picker and saved voice stay consistent with what gets spoken.
   function resolveProvider(pref: string): string {
+    if (managed) return "google";
     if (pref === "elevenlabs" && authStatus.elevenLabsConfigured) return "elevenlabs";
     if (pref === "google" && authStatus.googleConfigured) return "google";
     if (authStatus.googleConfigured) return "google";
@@ -80,6 +86,11 @@ export default function VoiceSection({
 
   const activeProvider = resolveProvider(ttsProvider);
   const anyVoiceConfigured = authStatus.googleConfigured || authStatus.elevenLabsConfigured;
+  // Managed mode drops the premium tile rather than rendering it dead — the
+  // managed ElevenLabs key can't speak, so it's not a choice at all.
+  const providerTiles = managed
+    ? VOICE_PROVIDERS.filter((p) => p.id === "google")
+    : VOICE_PROVIDERS;
 
   return (
     <>
@@ -101,7 +112,7 @@ export default function VoiceSection({
               Sets the spoken voice only. Mic transcription uses ElevenLabs if key is available, otherwise Google.
             </p>
             <div className="vc-provider-grid">
-              {VOICE_PROVIDERS.map((p) => {
+              {providerTiles.map((p) => {
                 const selected = activeProvider === p.id;
                 const isConfigured =
                   p.id === "google"
@@ -138,6 +149,12 @@ export default function VoiceSection({
                 );
               })}
             </div>
+            {managed && (
+              <p className="settings-hint settings-hint-muted">
+                Test accounts speak with Google voices. ElevenLabs premium voices
+                are available when you use your own keys.
+              </p>
+            )}
           </div>
 
           {/* 02 · INTERVIEWER VOICE — searchable list of the active provider's voices. */}

@@ -4,6 +4,7 @@ import {
   GetAppVersion,
   GetHotkeyStatus,
   GetPreferences,
+  SignOutTestAccount,
   UpdatePreferences,
   models,
   hotkey,
@@ -15,6 +16,7 @@ import AboutSection from "./AboutSection";
 import ApiKeysSection from "./ApiKeysSection";
 import CaptureSection from "./CaptureSection";
 import GeneralSection from "./GeneralSection";
+import ManagedAccountCard from "./ManagedAccountCard";
 import ModelsSection from "./ModelsSection";
 import PrivacySection from "./PrivacySection";
 import PushToTalkSection from "./PushToTalkSection";
@@ -79,7 +81,10 @@ const NAV_GROUPS: NavGroup[] = [
 
 interface Props {
   authStatus: models.AuthStatus;
-  onAuthChange: (status: models.AuthStatus) => void;
+  // App's single auth-status update path: pass a fresh status when in hand
+  // (activation/sign-out return one), or call with no args to refetch. Either
+  // way the app shell reloads its prefs copy too (KeyMode lives there).
+  onAuthChange: (status?: models.AuthStatus) => void;
   // Bubble persisted preference changes up so the hub stays in sync.
   onPrefsChange?: (prefs: models.Preferences) => void;
   // Theme lives in App (mirrored to <html> + localStorage), so the control here
@@ -198,6 +203,49 @@ export default function Settings({
     onPrefsChange?.(p);
   }
 
+  // Flip between managed and BYOK key modes. The write goes through the normal
+  // savePrefs → UpdatePreferences path — the backend's Settings.Update is the
+  // single chokepoint that re-resolves the provider registry on a KeyMode
+  // change — then the auth status is refetched, since which keys count as
+  // "configured" just switched namespaces.
+  async function switchKeyMode(mode: "managed" | "byok", msg: string) {
+    await savePrefs({ keyMode: mode }, msg);
+    onAuthChange();
+  }
+
+  // Sign out of the managed test account (device-local): the backend deletes
+  // the managed keys + session and flips KeyMode to "byok", leaving BYOK keys
+  // untouched. Re-seed the local prefs mirror — the store-side KeyMode changed
+  // under it (same recovery as handleDataCleared).
+  async function handleSignOut() {
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      const status = await SignOutTestAccount();
+      onAuthChange(status);
+      seedFromPrefs(await GetPreferences());
+      setSuccess("Signed out of the test account. Your own keys were not touched.");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // A test account was activated from the invite footer: the backend installed
+  // the managed keys and flipped KeyMode. Push the fresh status up and re-seed
+  // the local prefs mirror.
+  async function handleActivated(status: models.AuthStatus) {
+    onAuthChange(status);
+    try {
+      seedFromPrefs(await GetPreferences());
+    } catch {
+      // Wails runtime not present in browser preview.
+    }
+    setSuccess("Test account activated.");
+  }
+
   return (
     <div className="settings-page">
       <div className="settings-layout">
@@ -245,19 +293,40 @@ export default function Settings({
           )}
 
           {section === "models" && (
-            <ModelsSection prefs={prefs} savePrefs={savePrefs} />
-          )}
-
-          {section === "api-keys" && (
-            <ApiKeysSection
+            <ModelsSection
               authStatus={authStatus}
-              onAuthChange={onAuthChange}
-              saving={saving}
-              setSaving={setSaving}
-              setError={setError}
-              setSuccess={setSuccess}
+              prefs={prefs}
+              savePrefs={savePrefs}
+              onOpenApiKeys={() => goTo("api-keys")}
             />
           )}
+
+          {/* API Keys forks by mode: the managed account card replaces the
+              per-provider key cards while KeyMode is "managed". */}
+          {section === "api-keys" &&
+            (authStatus.keyMode === "managed" ? (
+              <ManagedAccountCard
+                authStatus={authStatus}
+                saving={saving}
+                onSwitchToByok={() =>
+                  switchKeyMode("byok", "Switched to your own keys — you're still signed in.")
+                }
+                onSignOut={handleSignOut}
+              />
+            ) : (
+              <ApiKeysSection
+                authStatus={authStatus}
+                onAuthChange={onAuthChange}
+                saving={saving}
+                setSaving={setSaving}
+                setError={setError}
+                setSuccess={setSuccess}
+                onSwitchBack={() =>
+                  switchKeyMode("managed", "Switched back to your test account.")
+                }
+                onActivated={handleActivated}
+              />
+            ))}
 
           {section === "voice" && (
             <VoiceSection

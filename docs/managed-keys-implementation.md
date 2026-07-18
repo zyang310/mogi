@@ -8,14 +8,18 @@
 >
 > **Status legend:** ✅ done · ◑ in progress · ☐ not started
 >
-> **Current status (2026-07-14):** **Phases 0–1 ✅ complete** — the access
+> **Current status (2026-07-16):** **Phases 0–2 ✅ complete** — the access
 > service is built and verified end-to-end locally (Phase 0); the app backend
 > (store → access client → account service → mode-aware AuthStatus → bindings +
-> launch refresh) is implemented and unit-tested against fakes (Phase 1). Go
-> build/test/vet/gofmt, the access-service suite, and `npx tsc --noEmit` are all
-> green. **Not yet done:** Phase 1's *interactive* `wails dev` backend e2e (the
-> 1.10 phase gate — needs a running local access service + native window) and
-> **Phases 2–3**.
+> launch refresh) is implemented and unit-tested against fakes (Phase 1); the
+> full frontend (app-shell plumbing, InviteActivation, SetupPage two-door fork,
+> Settings account card + mode fork + invite entry, pinned-model lock card +
+> managed voice guards) is built and verified (2.1–2.5), and the **2.6 full
+> local e2e battery passed** against a live memory/log service under
+> `wails dev` — redeem, pinning, voice resolution, kill switch, BYOK
+> regression, sign-out, offline grace, Clear-All — which also closed 1.10's
+> deferred interactive gate and 2.3's live drive. **Not yet done: Phase 3**
+> (deploy, provider verification, prod e2e, docs).
 
 ## Context
 
@@ -257,54 +261,163 @@ planned except for the small as-built refinements noted per step.
   > needs a running access service + native window and has **not** been run yet.
   > It can run standalone before Phase 2, or fold into the 2.6 full local e2e.
 
-## Phase 2 — Frontend — ☐ Not started
+## Phase 2 — Frontend — ✅ Done
 
-- ☐ **2.1 App shell plumbing.** `App.tsx`: `handleAuthChange` (setAuthStatus +
+- ✅ **2.1 App shell plumbing.** `App.tsx`: `handleAuthChange` (setAuthStatus +
   `loadPrefs`) passed to SetupPage/Settings (stale-prefs guard); mount-scoped
   `EventsOn("managed:changed", …)` → refetch AuthStatus + prefs, surface `notice`.
-  > **Checkpoint:** tsc; `handleAuthChange` is the only status setter passed
-  > down; listener matches the `ptt:down` subscribe/cleanup idiom.
-  > **As-built (1.9) note:** `ActivateTestAccount`/`SignOutTestAccount` **return
-  > the fresh `AuthStatus`**, so let `handleAuthChange(status?)` take an optional
-  > status — the button handlers pass the returned value (only `loadPrefs()` then
-  > needs a round trip), while the `managed:changed` listener (no status in hand)
-  > calls `GetAuthStatus()` itself. Keeps one setter, avoids a redundant fetch.
-- ☐ **2.2 InviteActivation component.** New `components/setup/InviteActivation.tsx`
+  Built per the 1.9 as-built note: `handleAuthChange(status?)` takes an optional
+  status — button handlers pass the value Activate/SignOut return (only
+  `loadPrefs()` then needs a round trip); the `managed:changed` listener (no
+  status in hand) refetches. One setter, no redundant fetch.
+  > **Checkpoint ✓** — tsc clean; `handleAuthChange` is the only status setter
+  > passed down; listener drives the existing dismissible error banner and was
+  > verified in the stubbed preview: a notice surfaces + exactly
+  > `GetAuthStatus`/`GetPreferences` refetch; an empty notice (rotation/re-pin)
+  > refetches silently; the subscription survives StrictMode's
+  > mount→cleanup→remount (unsubscribe path exercised).
+  > **As-built:** the subscribe is wrapped in try/catch — unlike bound Go calls
+  > (which *reject*), `EventsOn` **throws synchronously** when the Wails runtime
+  > is absent, and an unguarded mount-scoped subscribe crashed the whole tree in
+  > the plain-browser preview. (The `ptt:down` listener never hit this: it's
+  > gated behind prefs, which never load unstubbed.)
+- ✅ **2.2 InviteActivation component.** New `components/setup/InviteActivation.tsx`
   + CSS: phase machine `request | verify | done`, email/invite/OTP fields,
   privacy-notice checkbox gating the request, `RequestTestCode`/
-  `ActivateTestAccount`, `onActivated`/`onBack`. Reuse `.btn*`.
-  > **Checkpoint:** tsc + browser preview with both bindings stubbed;
-  > host-agnostic (Settings re-hosts it in 2.4).
-- ☐ **2.3 SetupPage two-door fork.** Door state `choose | invite | byok`; managed
+  `ActivateTestAccount`, `onActivated`/`onBack`. Reuses `.btn*`.
+  > **Checkpoint ✓** — tsc clean; full flow driven in a stubbed browser preview
+  > (both themes): consent checkbox gates the request even with both fields
+  > filled; invalid-invite and invalid-OTP rejections render inline (staying on
+  > their phase); the OTP field strips non-digits and caps at 6, with Activate
+  > enabled only at exactly 6; success hands the fresh `AuthStatus` to
+  > `onActivated`. Host-agnostic as required for 2.4.
+  > **As-built:** `onBack` is optional — the request step renders a Back button
+  > only when the host provides one; the verify step's Back is internal (returns
+  > to request keeping the typed email/invite, which also serves as the resend
+  > path). On success the component calls `onActivated(status)` right after
+  > entering `done` — the terminal success card is just what shows until the
+  > host re-renders. Fields follow the SetupPage credential idiom (uppercase
+  > label + underlined mono input) via self-contained `invite-*` classes.
+- ✅ **2.3 SetupPage two-door fork.** Door state `choose | invite | byok`; managed
   signed-in pre-pass card; invite door hosts `InviteActivation`; byok door =
   existing form untouched + back link; gate "Already configured" hints on
   `keyMode !== "managed"`.
-  > **Checkpoint:** `wails dev` fresh DB → doors → invite → OTP from log → card →
-  > Continue → Hub; relaunch → pre-pass card; BYOK door byte-identical.
-- ☐ **2.4 Settings account card + fork + invite entry.** New
+  > **Checkpoint ✓ (stubbed preview)** — every UI flow driven with auth-scenario
+  > stubs: fresh → chooser (two doors) → invite door hosts `InviteActivation`
+  > (Back roundtrips) → activate → pre-pass card supersedes the component's
+  > `done` state → Continue → Hub with Start enabled; relaunch-as-managed lands
+  > on the card directly (no doors, no form); relaunch-as-configured-BYOK lands
+  > **directly on the byok form, byte-identical** (original header, all three
+  > "Already configured" hints, "Keys Configured" check state, Continue enabled)
+  > plus the back link; byok ↔ chooser roundtrip. tsc clean. **The live
+  > `wails dev` drive (fresh DB → OTP from the service log) folds into the 2.6
+  > battery, alongside 1.10's still-open interactive gate.**
+  > **As-built:** setup lands by state — BYOK users with saved keys go straight
+  > to the byok door (today's relaunch UX, no extra click), fresh installs get
+  > the chooser; the pre-pass card gates on `keyMode === "managed"` **computed
+  > per render**, so a launch-refresh sign-out mid-setup drops back to the
+  > doors. `InviteActivation.onActivated` wires straight to `onAuthChange`
+  > (2.1's single setter). The card reuses `setup-card--success` for the glow
+  > and points account management at Settings → API Keys (2.4). Mode-switching
+  > is deliberately *not* offered from the card — that's Settings' job.
+- ✅ **2.4 Settings account card + fork + invite entry.** New
   `components/settings/ManagedAccountCard.tsx` + CSS (email, badge, pinned-model,
   **Switch to my own keys** via `savePrefs({keyMode:"byok"})`, **Sign out** via
   `SignOutTestAccount`). `Settings.tsx`: `api-keys` pane renders the card when
   managed, else `ApiKeysSection`. `ApiKeysSection` (byok view): "Switch back"
   banner when `managedActive`; "Have an invite?" footer hosting inline
   `<InviteActivation>`.
-  > **Checkpoint:** activate→card; switch to byok→key cards + banner, managed
-  > rows intact (relaunch + switch back → still signed in); sign out→BYOK keys
-  > untouched. Mode switch flows only through `savePrefs`→`UpdatePreferences`→
-  > `Settings.Update`.
-- ☐ **2.5 Pinned model + voice in Settings.** `ModelsSection`: `authStatus`
+  > **Checkpoint ✓ (stubbed preview, stateful auth stub)** — activate (from the
+  > inline footer) → card, signed in as the new email; switch to byok → the
+  > three key cards + banner ("Signed in as …, using your own keys"), with the
+  > pre-existing BYOK OpenRouter key **Configured** and EL/Google bare (namespace
+  > separation visible); switch back → card, same email (managed rows intact);
+  > sign out → banner gone, **BYOK key still Configured**, invite footer
+  > reappears. Instrumented the mode switch: exactly
+  > `UpdatePreferences{keyMode}` → `GetAuthStatus` → `GetPreferences` — no other
+  > mutation path. Both themes; tsc clean. (True relaunch persistence is
+  > backend behavior — 1.6's unit tests — and lands in the 2.6 battery.)
+  > **As-built:** the Settings **shell** owns the three account flows
+  > (`switchKeyMode`, `handleSignOut`, `handleActivated`) because sign-out and
+  > activation change the store-side KeyMode *under* the shell's local prefs
+  > mirror — each flow re-seeds it (`seedFromPrefs`, the `handleDataCleared`
+  > recovery), otherwise the next unrelated `savePrefs` would write a stale
+  > KeyMode back. `Settings`' `onAuthChange` prop widened to
+  > `(status?) => void` to match 2.1's setter (bare call = refetch after a mode
+  > flip). The invite footer is hidden while `managedActive` (the banner is the
+  > affordance then) and collapses to a single row until opened. Sign-out has
+  > no confirm step: it's device-local and recoverable — re-verifying reuses
+  > the tester and mints no new invite use (0.7). New `ApiKeysSection.css`
+  > (the section previously had no stylesheet of its own).
+- ✅ **2.5 Pinned model + voice in Settings.** `ModelsSection`: `authStatus`
   prop; managed → static locked card (lock icon + `pinnedModel`) instead of
   `ModelPicker`. `VoiceSection`: managed → google-only tiles + `resolveProvider()
   → "google"` + BYOK-only note. `VoicePicker` unchanged (backend filters).
-  > **Checkpoint:** managed → lock card + no Chirp/Studio voices; byok → full
-  > picker + both tiles. Both branch on `authStatus`, not prefs.
-- ☐ **2.6 Full local e2e (pre-GCP).** memory/log service + `MOGI_ACCESS_URL=…
+  > **Checkpoint ✓** — tsc clean; stubbed preview, both modes and themes:
+  > managed → lock card (lock icon + pinned-model chip + hint deep-linking to
+  > API Keys) with the picker gone, single Google tile **selected even with
+  > `ttsProvider: "elevenlabs"` saved** (the forced resolution), BYOK-only note,
+  > filtered 3-voice catalog; byok → full picker + both tiles + 5-voice catalog
+  > incl. Chirp/Studio. Both branch on `authStatus.keyMode`, not prefs. The
+  > lock card was re-confirmed **live** in the 2.6 battery with the real
+  > server pin. (The no-Chirp/Studio managed catalog is backend behavior —
+  > 1.8's unit tests; with stub keys the live `ListVoices` can't succeed.)
+  > **As-built:** the lock card reuses `.settings-card-placeholder`; only the
+  > pinned-id chip needed CSS (new `ModelsSection.css`). ModelsSection gained
+  > `onOpenApiKeys` (same deep-link idiom as VoiceSection's placeholder) since
+  > API Keys owns mode switching. VoiceSection filters `VOICE_PROVIDERS` down
+  > to a `providerTiles` list when managed — the premium tile is dropped, not
+  > rendered dead — and the note reuses `settings-hint settings-hint-muted`.
+  > `ListVoices()` takes **no provider arg** (the backend resolves + filters);
+  > the picker's `provider` prop is only its refetch trigger.
+- ✅ **2.6 Full local e2e (pre-GCP).** memory/log service + `MOGI_ACCESS_URL=…
   wails dev`: redeem → keys land, model pinned, Scribe STT + forced-Google TTS;
   kill switch (`TEST_PHASE_ACTIVE=false` restart → graceful sign-out); BYOK
   regression; sign-out leaves BYOK keys; offline grace (stop service → cached
   keys work); Clear All Data → signed out.
-  > **Phase gate:** full battery. Whole-feature recount: 3 bindings, 2 new
-  > components; only the deliberate Phase 3 hooks remain unexercised.
+  > **Phase gate ✓ — full battery passed (2026-07-16)**, driven through the
+  > `wails dev` dev server (`:34115`, bindings over the dev bridge) against
+  > `STORE=memory MAILER=log` on `:8787` with a distinctive
+  > `PINNED_MODEL=anthropic/claude-sonnet-4.5`:
+  > - **Redeem (2.3's live drive):** fresh DB → chooser → invite door → OTP
+  >   from the service log → activate → signed-in card; all three managed rows
+  >   + session token + email + pin landed in SQLite; AuthStatus reported
+  >   managed/3×configured/pinned.
+  > - **Voice resolution:** with deliberately fake keys, error provenance
+  >   proves routing — `SynthesizeSpeech` failed **at Google** (`googletts:
+  >   … 400`, despite an installed EL key) and `TranscribeAudio` failed **at
+  >   ElevenLabs Scribe** (`voice: ElevenLabs STT … 401`) = forced-Google TTS +
+  >   Scribe-preferred STT. (Real-key success is 3.1's checkpoint.)
+  > - **Kill switch:** phase-off proven live on the wire (`POST /activate` →
+  >   `403 "the test phase is not currently active"`); app relaunch → launch
+  >   refresh rejected → managed rows purged, `key_mode` flipped to byok,
+  >   **BYOK key untouched**. *Memory-store caveat:* restarting the service
+  >   also wipes sessions, so the refresh rejection observed live is the 401
+  >   invalid-token flavor — same `ErrUnauthorized` purge path; the
+  >   403-phase-off `/keys` row is asserted by 0.7's handler tests.
+  > - **BYOK regression + namespace separation:** switch-to-own-keys → three
+  >   bare key cards + banner; saved a BYOK OpenRouter key (Configured); both
+  >   `openrouter_api_key` and `managed_openrouter_api_key` side by side in
+  >   the DB; switch-back round trip; explicit sign-out removed every
+  >   `managed_*` row, kept the BYOK key, invite footer returned.
+  > - **Offline grace:** service stopped → relaunch logged `account: launch
+  >   key refresh failed, using cached keys: … connection refused`, every
+  >   managed row intact, app landed on the signed-in card.
+  > - **Clear All Data:** CONFIRM modal → AuthStatus fully reset, tables empty.
+  > - **1.10's deferred gate closed** in its original form: console-driven
+  >   `RequestTestCode` → OTP from log → `ActivateTestAccount` → returned
+  >   AuthStatus showed managed.
+  >
+  > Whole-feature recount: 3 bindings, 2 new components; only the deliberate
+  > Phase 3 hooks (Resend mailer, provisioning `Delete`, Firestore seam)
+  > remain unexercised.
+  > **As-built notes:** (1) a fresh-DB e2e must move **both** data dirs aside —
+  > with `~/Library/Application Support/mogi` absent, `appDataDir`'s legacy
+  > migration silently renames an old `ai-interviewer/` dir into place and its
+  > keys read as configured. (2) In an external browser the Wails dev page
+  > needs real typed keystrokes; synthetic `input.value` writes don't reach
+  > React state. (3) `wails dev` + the OS keyboard hook logs an
+  > Accessibility-permission warning in headless-ish drives — harmless here.
 
 ## Phase 3 — Deploy, ops, docs — ☐ Not started
 
@@ -343,8 +456,7 @@ planned except for the small as-built refinements noted per step.
 2. In Phase 1: 1.1→1.2→1.3; 1.4→1.5→1.6; everything before 1.10
    (`wails generate module` once). **[1 done]**
 3. 1.10 before all of Phase 2 (bindings + regenerated models gate TSX). **[1.10
-   Go/TS surface done; the interactive `wails dev` smoke is still open but does
-   not block writing Phase 2 TSX.]**
+   fully done — its interactive `wails dev` smoke ran inside the 2.6 battery.]**
 4. 2.1 before 2.2–2.5 (`handleAuthChange` is the staleness guard).
 5. 3.1/3.2/3.3 → 3.4 → 3.5/3.6; testers only after 3.6.
 
@@ -353,11 +465,11 @@ planned except for the small as-built refinements noted per step.
 - Per step: named checkpoint commands (root `go build ./... && go test ./... &&
   gofmt -l .`; `cd access-service && go test ./...`; `cd frontend && npx tsc
   --noEmit`; `wails generate module` after Go surface changes).
-- Phase gates: **0.8 curl smoke ✓ (passed)**; **1.10 automated gate ✓ (passed:
-  Go build/test/vet/gofmt, access-service suite, `npx tsc --noEmit`)** — its
-  console-driven backend e2e (`wails dev`) is still ☐; 2.6 full local e2e (kill
-  switch, offline grace, BYOK regression, ClearAll); 3.6 prod e2e +
-  revocation/rotation drills.
+- Phase gates: **0.8 curl smoke ✓**; **1.10 ✓ (automated: Go
+  build/test/vet/gofmt, access-service suite, `npx tsc --noEmit`; its
+  console-driven backend e2e ran inside 2.6)**; **2.6 full local e2e ✓ (kill
+  switch, offline grace, BYOK regression, ClearAll — see the 2.6 gate notes)**;
+  3.6 prod e2e + revocation/rotation drills ☐.
 
 ## Critical files
 
@@ -369,6 +481,8 @@ planned except for the small as-built refinements noted per step.
 - `internal/store/managed.go` ✅ — managed namespace on existing pref primitives
 - `internal/service/interview.go` / `voice.go` ✅ — `resolveModel` + TTS/catalog guards
 - `app.go` / `window.go` ✅ — wiring, 3 bindings, startup refresh, `managed:changed`
-- `frontend/src/…` — `lib/wailsBridge.ts` ✅ (3 methods exported); ☐ SetupPage
-  fork, InviteActivation, ManagedAccountCard,
-  Settings/ApiKeysSection/ModelsSection/VoiceSection, App.tsx (Phase 2)
+- `frontend/src/…` — `lib/wailsBridge.ts` ✅ (3 methods exported); `App.tsx` ✅
+  (`handleAuthChange` + `managed:changed` listener); `InviteActivation` ✅;
+  SetupPage fork ✅; ManagedAccountCard + Settings fork + ApiKeysSection
+  banner/invite-footer ✅; ModelsSection lock card + VoiceSection managed
+  guards ✅ (2.5)

@@ -1,0 +1,137 @@
+/* InviteActivation — the invite-code → email-OTP redemption flow. Hosted
+   inside SetupPage's glass card (invite door) and Settings' API Keys pane, so
+   it paints no backdrop of its own and inherits the host's width. */
+
+.invite-activation {
+  display: flex;
+  flex-direction: column;
+}
+
+.invite-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── Fields ────────────────────────────────────────────────────────────
+   The app's credential-entry idiom (see SetupPage): a small uppercase label
+   over an underlined mono input. */
+.invite-field:focus-within .invite-label {
+  color: var(--primary);
+}
+
+.invite-label {
+  display: block;
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  margin-bottom: 4px;
+  transition: color 0.2s;
+}
+
+.invite-input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--outline-variant);
+  padding: 8px 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--on-surface);
+  outline: none;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.invite-input::placeholder {
+  color: var(--outline);
+}
+
+.invite-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 2px 0 0 color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+/* The OTP gets the "big code" treatment: large, spaced, centered digits. */
+.invite-input--otp {
+  font-size: 24px;
+  letter-spacing: 0.4em;
+  text-align: center;
+}
+
+/* ── Privacy consent — the checkbox gates the request ─────────────────── */
+.invite-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+}
+
+.invite-consent input {
+  margin-top: 3px;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+}
+
+/* ── Messages ──────────────────────────────────────────────────────────── */
+.invite-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--on-surface-variant);
+}
+
+.invite-hint strong {
+  color: var(--on-surface);
+  font-weight: 600;
+}
+
+.invite-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--error);
+}
+
+/* ── Actions ───────────────────────────────────────────────────────────── */
+.invite-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* ── Terminal success card ─────────────────────────────────────────────
+   Usually visible only briefly — hosts re-render on the fresh AuthStatus. */
+.invite-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.invite-done-icon {
+  font-size: 40px;
+  color: var(--secondary);
+}
+
+.invite-done-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.invite-done-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--on-surface-variant);
+}

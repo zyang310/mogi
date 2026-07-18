@@ -1,0 +1,84 @@
+/* ── API Keys pane add-ons ───────────────────────────────────────────────────
+   The switch-back banner (managed account signed in, BYOK mode active) and the
+   collapsed "Have an invite?" footer hosting InviteActivation inline. The
+   per-provider cards themselves are styled in ApiKeyCard.css. */
+
+.apikeys-managed-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+}
+
+.apikeys-managed-banner > .material-symbols-outlined {
+  font-size: 22px;
+  color: var(--secondary);
+  font-variation-settings: "FILL" 1;
+}
+
+.apikeys-managed-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.apikeys-managed-banner-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--on-surface);
+}
+
+.apikeys-managed-banner-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--on-surface-variant);
+}
+
+/* Collapsed invite footer: the toggle row fills the card, so the card itself
+   drops its padding; the expanded body restores it. */
+.apikeys-invite {
+  padding: 0;
+  overflow: hidden;
+}
+
+.apikeys-invite-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.apikeys-invite-toggle:hover {
+  color: var(--on-surface);
+  background-color: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
+.apikeys-invite-toggle .material-symbols-outlined {
+  font-size: 20px;
+  color: var(--primary);
+}
+
+.apikeys-invite-toggle .apikeys-invite-chevron {
+  margin-left: auto;
+  color: var(--outline);
+}
+
+.apikeys-invite-body {
+  padding: 16px 18px;
+}
+
+.apikeys-invite-body .settings-hint {
+  margin-bottom: 16px;
+}

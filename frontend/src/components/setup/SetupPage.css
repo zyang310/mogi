@@ -391,6 +391,133 @@
   margin: 0;
 }
 
+/* ── Setup doors (the choose fork) ─────────────────────────────────── */
+.setup-doors {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setup-door {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  background: transparent;
+  border: 1px solid var(--outline-variant);
+  border-radius: 12px;
+  color: var(--on-surface);
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.setup-door:hover {
+  background-color: color-mix(in srgb, var(--primary) 8%, transparent);
+  border-color: var(--outline);
+}
+
+.setup-door-icon {
+  font-size: 26px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.setup-door-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.setup-door-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.setup-door-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+}
+
+.setup-door-chevron {
+  font-size: 20px;
+  color: var(--outline);
+  flex-shrink: 0;
+}
+
+/* ── Back link (byok door → chooser) ───────────────────────────────── */
+.setup-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-bottom: 14px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.setup-back:hover {
+  color: var(--on-surface);
+}
+
+.setup-back .material-symbols-outlined {
+  font-size: 16px;
+}
+
+/* ── Managed signed-in pre-pass card ───────────────────────────────── */
+.setup-managed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.setup-managed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--secondary) 50%, transparent);
+  background: color-mix(in srgb, var(--secondary) 12%, transparent);
+  color: var(--secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.setup-managed-badge .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.setup-managed-email {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--on-surface);
+}
+
+.setup-managed-note {
+  margin: 0 0 8px;
+  max-width: 380px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--on-surface-variant);
+}
+
 /* ── Spinner animation ─────────────────────────────────────────────── */
 @keyframes setup-spin {
   from { transform: rotate(0deg); }

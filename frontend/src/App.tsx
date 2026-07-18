@@ -128,6 +128,25 @@ function App() {
     }
   }
 
+  // The single auth-status update path handed to child views (SetupPage,
+  // Settings) and used by the managed:changed listener. Callers that already
+  // hold a fresh status pass it (managed activation/sign-out return one);
+  // otherwise it refetches. Preferences reload alongside because KeyMode lives
+  // there — updating status without prefs would leave the shell stale after a
+  // mode switch.
+  async function handleAuthChange(status?: models.AuthStatus) {
+    if (status) {
+      setAuthStatus(status);
+    } else {
+      try {
+        setAuthStatus(await GetAuthStatus());
+      } catch {
+        // Wails runtime not present in browser preview.
+      }
+    }
+    await loadPrefs();
+  }
+
   // Persist the Company Practice tab's last company + difficulty so it resumes
   // where the user left off. Merges into the current prefs; best-effort.
   async function rememberCompany(slug: string, difficulty: string) {
@@ -219,6 +238,28 @@ function App() {
       pttBusyRef.current = false;
     };
   }, [prefs?.pushToTalkEnabled]);
+
+  // Managed test-account state can change without user input: the launch-time
+  // backend refresh rotates keys, re-pins the model, or signs the device out
+  // when the account was revoked / the test phase ended. Refetch auth + prefs
+  // so the UI reflects it, and surface the server's notice (only sent on a
+  // forced sign-out) in the shared banner.
+  useEffect(() => {
+    try {
+      return EventsOn("managed:changed", (notice: string) => {
+        void handleAuthChange();
+        if (notice) setError(notice);
+      });
+    } catch {
+      // Wails runtime not present in browser preview — EventsOn throws
+      // synchronously (unlike bound Go calls, which reject), so an unguarded
+      // subscribe would crash the whole tree.
+      return;
+    }
+    // Subscribed once on mount: the handler reads no component state (only
+    // stable setters), so there's nothing to re-subscribe for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleStart() {
     setError("");
@@ -409,7 +450,7 @@ function App() {
         <WindowControls />
         <SetupPage
           authStatus={authStatus}
-          onAuthChange={setAuthStatus}
+          onAuthChange={handleAuthChange}
           onContinue={() => setSetupDone(true)}
         />
       </>
@@ -542,7 +583,7 @@ function App() {
         {view === "settings" ? (
           <Settings
             authStatus={authStatus}
-            onAuthChange={setAuthStatus}
+            onAuthChange={handleAuthChange}
             onPrefsChange={setPrefs}
             themePref={themePref}
             onThemeChange={chooseTheme}

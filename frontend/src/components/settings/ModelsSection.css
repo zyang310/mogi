@@ -1,0 +1,14 @@
+/* ── Models — managed-mode lock card ─────────────────────────────────────────
+   While KeyMode is "managed" the interview model is pinned server-side and the
+   picker is replaced by a locked placeholder card. Everything reuses the shared
+   .settings-card-placeholder classes; only the pinned-model id chip is ours. */
+
+.models-pinned-id {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--on-surface);
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--surface-container-high);
+  border: 1px solid var(--outline-variant);
+}

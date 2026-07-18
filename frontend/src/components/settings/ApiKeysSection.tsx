@@ -2,6 +2,8 @@ import { useState } from "react";
 import { SetAPIKey, DeleteAPIKey, GetAuthStatus, models } from "../../lib/wailsBridge";
 import ApiKeyCard from "./ApiKeyCard";
 import type { KeyCard, KeyProvider } from "./ApiKeyCard";
+import InviteActivation from "../setup/InviteActivation";
+import "./ApiKeysSection.css";
 
 const PROVIDER_LABELS: Record<KeyProvider, string> = {
   openrouter: "OpenRouter",
@@ -80,6 +82,12 @@ interface Props {
   setSaving: (v: boolean) => void;
   setError: (msg: string) => void;
   setSuccess: (msg: string) => void;
+  // Flip KeyMode back to "managed" (the switch-back banner) — the managed
+  // account stayed signed in when the user switched to their own keys.
+  onSwitchBack: () => void;
+  // A test account was activated from the invite footer; the shell pushes the
+  // fresh status up and re-seeds its prefs mirror (KeyMode just changed).
+  onActivated: (status: models.AuthStatus) => void;
 }
 
 // ApiKeysSection is the Settings → API Keys pane: one ApiKeyCard per provider,
@@ -92,7 +100,11 @@ export default function ApiKeysSection({
   setSaving,
   setError,
   setSuccess,
+  onSwitchBack,
+  onActivated,
 }: Props) {
+  // "Have an invite?" footer: collapsed to a single row until opened.
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [openRouterKey, setOpenRouterKey] = useState("");
   const [elevenLabsKey, setElevenLabsKey] = useState("");
   const [googleKey, setGoogleKey] = useState("");
@@ -193,6 +205,26 @@ export default function ApiKeysSection({
         <h1>API Keys</h1>
         <p>Keys are stored locally and never leave this device except in API requests.</p>
       </header>
+
+      {/* Still signed in to a test account, but running on own keys: offer the
+          way back. (Signing out entirely lives on the managed card.) */}
+      {authStatus.managedActive && (
+        <div className="settings-card apikeys-managed-banner">
+          <span className="material-symbols-outlined">verified</span>
+          <div className="apikeys-managed-banner-text">
+            <p className="apikeys-managed-banner-title">
+              Signed in as {authStatus.managedEmail}
+            </p>
+            <p className="apikeys-managed-banner-sub">
+              You're using your own keys — the test account stays signed in.
+            </p>
+          </div>
+          <button className="btn btn-primary" disabled={saving} onClick={onSwitchBack}>
+            Switch back
+          </button>
+        </div>
+      )}
+
       {KEY_CARDS.map((card) => {
         const isSet = configured[card.id];
         return (
@@ -220,6 +252,34 @@ export default function ApiKeysSection({
           />
         );
       })}
+
+      {/* Invite entry point for BYOK users — hidden while a test account is
+          signed in (the banner above is the affordance then). */}
+      {!authStatus.managedActive && (
+        <div className="settings-card apikeys-invite">
+          {inviteOpen ? (
+            <div className="apikeys-invite-body">
+              <p className="settings-card-title">Redeem an invite</p>
+              <p className="settings-hint">
+                Activate a developer-funded test account — no keys needed. Keys
+                you've saved here are kept.
+              </p>
+              <InviteActivation
+                onActivated={onActivated}
+                onBack={() => setInviteOpen(false)}
+              />
+            </div>
+          ) : (
+            <button className="apikeys-invite-toggle" onClick={() => setInviteOpen(true)}>
+              <span className="material-symbols-outlined">confirmation_number</span>
+              Have an invite code? Activate a test account
+              <span className="material-symbols-outlined apikeys-invite-chevron">
+                chevron_right
+              </span>
+            </button>
+          )}
+        </div>
+      )}
     </>
   );
 }
