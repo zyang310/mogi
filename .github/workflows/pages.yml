@@ -1,0 +1,54 @@
+# Pages — publishes the landing page at trymogi.dev.
+#
+# Purpose: serve site/ as a static site. GitHub Pages' "deploy from a branch"
+# option can only serve the repo root or /docs, and /docs already holds this
+# project's written documentation — so the site lives in site/ and is deployed
+# by this workflow instead.
+#
+# Enable once, in Settings → Pages → Build and deployment → Source:
+# "GitHub Actions" (not "Deploy from a branch"), then set the custom domain to
+# trymogi.dev. site/CNAME keeps that binding in version control.
+#
+# Only site/ changes trigger a deploy, so app work never republishes the site.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/pages.yml"]
+  workflow_dispatch: # manual redeploy, e.g. after changing the custom domain
+
+permissions:
+  contents: read
+  pages: write # publish to the Pages service
+  id-token: write # required by deploy-pages for its OIDC handshake
+
+# Never let two deploys race; queue instead of cancelling so a deploy already
+# uploading isn't left half-applied.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # The site is plain HTML/CSS — nothing to compile, just upload the folder.
+      - name: Upload site/
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v4

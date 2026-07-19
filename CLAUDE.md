@@ -44,6 +44,7 @@ Rules and a map of the codebase. Roadmap/status → [docs/roadmap.md](docs/roadm
 | `frontend/src/style.css` | MD3 design tokens (`:root` CSS variables) + global reset. |
 | `frontend/wailsjs/` | Auto-generated bindings — **do not hand-edit**. |
 | `docs/` | Roadmap, architecture reference, feature plans. |
+| `site/` | The **trymogi.dev landing page** — plain static HTML/CSS, no build step, deployed to GitHub Pages by `.github/workflows/pages.yml` (which only runs on `site/**` changes; `build.yml` ignores them). Reuses the app's MD3 tokens so the two match. Commit site changes as `chore:`/`docs:` — `feat:` would make release-please cut an app release for a website edit. Deploy + custom-domain runbook: [site/README.md](site/README.md). |
 
 ## How to work on it
 

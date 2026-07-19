@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mogi — an AI mock interviewer that reads your screen</title>
+    <meta
+      name="description"
+      content="Practice coding interviews out loud in your own editor. Mogi watches your screen, reads the problem and your code, and pushes back like a real interviewer — without ever handing you the answer."
+    />
+    <link rel="icon" type="image/png" href="appicon.png" />
+
+    <!-- Open Graph / social preview -->
+    <meta property="og:title" content="Mogi — an AI mock interviewer that reads your screen" />
+    <meta
+      property="og:description"
+      content="Code in your own editor. Mogi watches, listens, and pushes back — the way a real interviewer would."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://trymogi.dev" />
+    <meta property="og:image" content="https://trymogi.dev/appicon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400;500&family=Shippori+Mincho:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="wordmark" href="#top">
+          <img src="appicon.png" alt="" width="28" height="28" />
+          <span>Mogi</span>
+        </a>
+
+        <nav class="section-nav" aria-label="Page sections">
+          <a href="#how">How it works</a>
+          <a href="#features">Features</a>
+          <a href="#install">Install</a>
+          <a href="#keys">Keys</a>
+        </nav>
+
+        <a class="header-link" href="https://github.com/zyang310/mogi">GitHub</a>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── Hero ──────────────────────────────────────────────────────── -->
+      <section class="hero" id="top">
+        <p class="kicker" lang="ja">模擬面接</p>
+        <h1>An AI mock interviewer<br />that reads your screen.</h1>
+        <p class="lede">
+          Code in your own editor. Mogi watches, listens, and pushes back — the
+          way a real interviewer would. No problem bank, no copy-pasting, no
+          switching tabs.
+        </p>
+
+        <div class="cta">
+          <a
+            class="btn-primary"
+            id="download"
+            href="https://github.com/zyang310/mogi/releases/latest"
+          >
+            Download for macOS
+          </a>
+          <p class="cta-meta" id="download-meta">Apple Silicon &amp; Intel</p>
+        </div>
+      </section>
+
+      <!-- ── The idea ──────────────────────────────────────────────────── -->
+      <section class="band" id="how">
+        <h2>The screenshot is the problem.</h2>
+        <p class="section-lede">
+          Mogi has no question text of its own. It floats over whatever you are
+          already using — VS Code, IntelliJ, a terminal, LeetCode in a browser —
+          and reads both the problem <em>and</em> your code straight off the
+          screen. You never paste anything in.
+        </p>
+
+        <ol class="steps">
+          <li>
+            <span class="step-num">1</span>
+            <h3>Open a problem anywhere</h3>
+            <p>
+              Your editor, your setup, your keybindings. Mogi adapts to you
+              rather than the other way around.
+            </p>
+          </li>
+          <li>
+            <span class="step-num">2</span>
+            <h3>Talk it through</h3>
+            <p>
+              Tap the voice hotkey and explain your approach out loud — exactly
+              what a real interview actually tests.
+            </p>
+          </li>
+          <li>
+            <span class="step-num">3</span>
+            <h3>Get pushed, not rescued</h3>
+            <p>
+              Hints, counterexamples, "what's the complexity there?" Mogi is
+              built to never hand over the solution.
+            </p>
+          </li>
+        </ol>
+      </section>
+
+      <!-- ── Features ──────────────────────────────────────────────────── -->
+      <section class="band alt" id="features">
+        <h2>What you get</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>Company practice</h3>
+            <p>
+              Draw from real question pools by company, weighted by how often
+              each problem actually shows up.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Voice, both ways</h3>
+            <p>
+              Speak your reasoning and hear the interviewer reply. A global
+              hotkey works even while your editor has focus.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Transcripts &amp; debriefs</h3>
+            <p>
+              Every session is saved locally with a full transcript and a written
+              debrief of how it went.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Stays on your machine</h3>
+            <p>
+              Sessions live in a local database. Your API keys never leave the
+              app, and there is no telemetry.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ── Install ───────────────────────────────────────────────────── -->
+      <section class="band" id="install">
+        <h2>Installing</h2>
+        <ol class="install">
+          <li>Download the <code>.zip</code> above and unzip it.</li>
+          <li>Drag <strong>Mogi.app</strong> into your <strong>Applications</strong> folder.</li>
+          <li>
+            <strong>Right-click the app → Open → Open.</strong>
+            <div class="callout">
+              <p>
+                Mogi isn't code-signed yet, so macOS blocks it on the first
+                launch with <em>"Mogi is damaged and can't be opened."</em> It
+                isn't damaged — right-click → Open adds a permanent exception.
+                You only do this once.
+              </p>
+              <p class="callout-alt">
+                Prefer the terminal?
+                <code>xattr -cr /Applications/Mogi.app</code>
+              </p>
+            </div>
+          </li>
+        </ol>
+
+      </section>
+
+      <!-- ── Keys ──────────────────────────────────────────────────────── -->
+      <section class="band alt" id="keys">
+        <h2>Bringing your own keys</h2>
+        <p class="section-lede">
+          Mogi runs on your own API keys — you pay the providers directly, at
+          cost, with no markup. Paste them into Settings on first launch; they're
+          stored on your machine and never sent anywhere but the provider.
+        </p>
+
+        <div class="keys">
+          <article class="key">
+            <div class="key-head">
+              <h3>OpenRouter</h3>
+              <span class="badge badge-req">Required</span>
+            </div>
+            <p>
+              Runs the interviewer itself — reading your screen and asking the
+              questions. Pay-as-you-go, and a practice session costs cents.
+            </p>
+            <details>
+              <summary>How to create one</summary>
+              <ol>
+                <li>
+                  Sign in at
+                  <a href="https://openrouter.ai">openrouter.ai</a> (Google or
+                  GitHub sign-in works).
+                </li>
+                <li>
+                  Add a few dollars of credit under
+                  <a href="https://openrouter.ai/credits">Credits</a>. OpenRouter
+                  is prepaid — with a zero balance every request fails.
+                </li>
+                <li>
+                  Go to <a href="https://openrouter.ai/keys">Keys</a> →
+                  <strong>Create Key</strong>, and give it a name like
+                  <em>Mogi</em>.
+                </li>
+                <li>
+                  Copy it — it starts with <code>sk-or-</code> and is shown only
+                  once.
+                </li>
+                <li>
+                  In Mogi: <strong>Settings → API Keys → OpenRouter</strong>,
+                  paste, save.
+                </li>
+              </ol>
+            </details>
+          </article>
+
+          <article class="key">
+            <div class="key-head">
+              <h3>Google Cloud</h3>
+              <span class="badge">Optional · voice</span>
+            </div>
+            <p>
+              The low-cost path for spoken interviews. Fiddlier to set up than
+              the other two, because Google needs two separate APIs switched on.
+            </p>
+            <details>
+              <summary>How to create one</summary>
+              <ol>
+                <li>
+                  Open the
+                  <a href="https://console.cloud.google.com">Google Cloud console</a>
+                  and create a project (any name).
+                </li>
+                <li>
+                  Enable
+                  <a
+                    href="https://console.cloud.google.com/apis/library/texttospeech.googleapis.com"
+                    >Cloud Text-to-Speech</a
+                  >
+                  — this is the voice you hear.
+                </li>
+                <li>
+                  Enable
+                  <a
+                    href="https://console.cloud.google.com/apis/library/speech.googleapis.com"
+                    >Cloud Speech-to-Text</a
+                  >
+                  — this is your microphone. Both are needed; enabling only the
+                  first leaves the mic failing silently.
+                </li>
+                <li>
+                  Go to
+                  <a href="https://console.cloud.google.com/apis/credentials"
+                    >Credentials</a
+                  >
+                  → <strong>Create credentials</strong> →
+                  <strong>API key</strong>. It starts with <code>AIza</code>.
+                </li>
+                <li>
+                  Optional but worth it: click
+                  <strong>Edit API key</strong> → restrict it to just those two
+                  APIs, so a leaked key can't be used for anything else.
+                </li>
+                <li>
+                  In Mogi: <strong>Settings → API Keys → Google Cloud</strong>,
+                  paste, save.
+                </li>
+              </ol>
+              <p class="details-note">
+                The project needs billing enabled even though both APIs include a
+                free monthly allowance — Google won't turn them on otherwise.
+              </p>
+            </details>
+          </article>
+
+          <article class="key">
+            <div class="key-head">
+              <h3>ElevenLabs</h3>
+              <span class="badge">Optional · voice</span>
+            </div>
+            <p>
+              The premium path — Scribe for listening, Flash for speaking. The
+              most natural-sounding option, and the quickest to set up.
+            </p>
+            <details>
+              <summary>How to create one</summary>
+              <ol>
+                <li>
+                  Sign up at
+                  <a href="https://elevenlabs.io">elevenlabs.io</a>. The free
+                  tier is enough to try it out.
+                </li>
+                <li>
+                  Open
+                  <a href="https://elevenlabs.io/app/settings/api-keys"
+                    >Settings → API Keys</a
+                  >
+                  and create a key.
+                </li>
+                <li>
+                  Copy it — it starts with <code>sk-el-</code> and is shown only
+                  once.
+                </li>
+                <li>
+                  In Mogi: <strong>Settings → API Keys → ElevenLabs</strong>,
+                  paste, save.
+                </li>
+              </ol>
+            </details>
+          </article>
+        </div>
+
+        <p class="note">
+          Voice is entirely optional — Mogi works typed. Either voice key on its
+          own gives you the full experience; add both and Mogi automatically
+          pairs ElevenLabs for listening with Google for speaking, which is the
+          best combination of the two.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>
+        <a href="https://github.com/zyang310/mogi">Source</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/zyang310/mogi/releases">Releases</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/zyang310/mogi/issues">Report an issue</a>
+      </p>
+      <p class="colophon">
+        <span lang="ja">模擬</span> — <em>mogi</em>, Japanese for "mock."
+      </p>
+    </footer>
+
+    <script>
+      // Resolve the newest release so the button links straight at the asset and
+      // the version/size are accurate. The static href above already points at
+      // /releases/latest, so if this fails the page still works — it just costs
+      // the visitor one extra click.
+      (function () {
+        var REPO = "zyang310/mogi";
+        var btn = document.getElementById("download");
+        var meta = document.getElementById("download-meta");
+
+        fetch("https://api.github.com/repos/" + REPO + "/releases/latest")
+          .then(function (r) {
+            return r.ok ? r.json() : Promise.reject(r.status);
+          })
+          .then(function (rel) {
+            var asset = (rel.assets || []).filter(function (a) {
+              return /\.zip$/.test(a.name);
+            })[0];
+            if (!asset) return;
+            btn.href = asset.browser_download_url;
+            meta.textContent =
+              rel.tag_name +
+              " · " +
+              (asset.size / 1048576).toFixed(1) +
+              " MB · Apple Silicon & Intel";
+          })
+          .catch(function () {
+            /* keep the static fallback */
+          });
+      })();
+
+      // Section nav: highlight whichever section is currently in view, and give
+      // the sticky header a hairline once the page has scrolled off the top.
+      // Anchor links work without any of this — it's purely an enhancement.
+      (function () {
+        var header = document.querySelector(".site-header");
+        var links = Array.prototype.slice.call(
+          document.querySelectorAll(".section-nav a")
+        );
+
+        var byId = {};
+        links.forEach(function (a) {
+          byId[a.getAttribute("href").slice(1)] = a;
+        });
+
+        // The header only earns its border once content passes beneath it.
+        function onScroll() {
+          header.classList.toggle("scrolled", window.scrollY > 8);
+        }
+        window.addEventListener("scroll", onScroll, { passive: true });
+        onScroll();
+
+        if (!("IntersectionObserver" in window)) return;
+
+        // The band shrinks the viewport to a horizontal slice through its
+        // middle, so "active" means "the section crossing the centre of the
+        // screen" rather than "anything visible" — otherwise three sections
+        // count as active at once on a tall display.
+        var observer = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (!entry.isIntersecting) return;
+              links.forEach(function (a) {
+                a.removeAttribute("aria-current");
+              });
+              var active = byId[entry.target.id];
+              if (active) active.setAttribute("aria-current", "true");
+            });
+          },
+          { rootMargin: "-45% 0px -50% 0px" }
+        );
+
+        document
+          .querySelectorAll("main section[id]")
+          .forEach(function (section) {
+            observer.observe(section);
+          });
+      })();
+    </script>
+  </body>
+</html>

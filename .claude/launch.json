@@ -8,6 +8,13 @@
       "port": 5173,
       "autoPort": true,
       "cwd": "frontend"
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4321"],
+      "port": 4321,
+      "cwd": "site"
     }
   ]
 }

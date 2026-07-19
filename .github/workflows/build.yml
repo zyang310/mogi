@@ -6,11 +6,15 @@
 # the workflow run and is only reachable by people with repo access.
 name: Build
 
+# The landing page (site/) ships via pages.yml and shares no code with the app,
+# so editing copy there shouldn't spend a full macOS universal build.
 on:
   push:
     branches: [main]
+    paths-ignore: ["site/**"]
   pull_request:
     branches: [main]
+    paths-ignore: ["site/**"]
 
 # Cancel an in-progress run when a newer commit lands on the same ref.
 concurrency:
