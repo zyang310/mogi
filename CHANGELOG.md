@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/zyang310/mogi/compare/v0.8.0...v0.9.0) (2026-07-19)
+
+
+### Features
+
+* sign and notarize macOS releases with Developer ID ([57a4b23](https://github.com/zyang310/mogi/commit/57a4b2331af3b2a1e7904a2c6b4c9839a431bd1e))
+
 ## [0.8.0](https://github.com/zyang310/mogi/compare/v0.7.4...v0.8.0) (2026-07-19)
 
 
