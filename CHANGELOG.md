@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.2](https://github.com/zyang310/mogi/compare/v0.12.1...v0.12.2) (2026-07-20)
+
+
+### Bug Fixes
+
+* improve update availability logic and documentation ([2e528f1](https://github.com/zyang310/mogi/commit/2e528f14687db4e16066192fc3ec23aa1e7f0fc8))
+
 ## [0.12.1](https://github.com/zyang310/mogi/compare/v0.12.0...v0.12.1) (2026-07-20)
 
 
