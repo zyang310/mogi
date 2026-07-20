@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/zyang310/mogi/compare/v0.12.2...v0.13.0) (2026-07-20)
+
+
+### Features
+
+* implement ask-once behavior for macOS Accessibility permission dialog in hotkey listener ([c5478f2](https://github.com/zyang310/mogi/commit/c5478f26bd99b7b1dbeab4aa561f352bd3fbebc6))
+
 ## [0.12.2](https://github.com/zyang310/mogi/compare/v0.12.1...v0.12.2) (2026-07-20)
 
 
