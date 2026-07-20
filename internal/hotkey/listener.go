@@ -108,23 +108,31 @@ func New() *Listener { return &Listener{} }
 // the first time push-to-talk is enabled and never restarts it: a later rebind or
 // enable/disable just swaps the guarded spec/enabled fields the running goroutine
 // reads. ctx is the Wails app context used to emit events.
-func (l *Listener) Apply(ctx context.Context, enabled bool, spec Spec) {
+//
+// allowPrompt controls whether an untrusted permission pre-flight may summon the
+// OS permission dialog (macOS shows it on every prompting check while untrusted —
+// a denial is never remembered). The return value reports whether that dialog
+// was actually shown, so the caller can persist an ask-once-ever flag; it is the
+// caller's job to pass allowPrompt=false forever after (see
+// service.Settings.ApplyHotkey).
+func (l *Listener) Apply(ctx context.Context, enabled bool, spec Spec, allowPrompt bool) (prompted bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.spec = spec
 	l.m = newMatcher(spec)
 	l.enabled = enabled
 	if !enabled || l.started {
-		return
+		return false
 	}
 	// Refuse to install a hook the OS will reject. gohook starts the hook
 	// asynchronously and reports a refusal only to stderr, so without this
 	// pre-flight the failure resurfaces later as an unrecoverable SIGSEGV in
 	// teardown (see endHook). Staying idle leaves started=false, so a later
 	// Apply — after the user grants the permission — starts it for real.
-	if !accessibilityTrusted() {
+	if !accessibilityTrusted(allowPrompt) {
 		l.lastErr = errNoAccessibility
-		return
+		// Untrusted + allowed to prompt means macOS put the dialog on screen.
+		return allowPrompt
 	}
 	l.lastErr = ""
 	l.ctx = ctx
@@ -133,6 +141,7 @@ func (l *Listener) Apply(ctx context.Context, enabled bool, spec Spec) {
 	hookCtx, cancel := context.WithCancel(ctx)
 	l.cancel = cancel
 	go l.loop(hookCtx)
+	return false
 }
 
 // errNoAccessibility is reported through Status when the OS denies the hook.

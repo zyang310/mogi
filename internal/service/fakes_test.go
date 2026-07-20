@@ -37,6 +37,7 @@ type fakeStore struct {
 	listStarredCompanies  func() ([]string, error)
 	setCompanyStarred     func(slug string, starred bool) error
 	clearAll              func() error
+	hotkeyPrompted        bool // backs HotkeyPrompted/MarkHotkeyPrompted
 	getManagedKey         func(provider string) (string, error)
 	setManagedKey         func(provider, value string) error
 	getManagedSession     func() (string, error)
@@ -59,6 +60,13 @@ func (f *fakeStore) SavePreferences(p models.Preferences) error {
 	if f.savePreferences != nil {
 		return f.savePreferences(p)
 	}
+	return nil
+}
+
+func (f *fakeStore) HotkeyPrompted() (bool, error) { return f.hotkeyPrompted, nil }
+
+func (f *fakeStore) MarkHotkeyPrompted() error {
+	f.hotkeyPrompted = true
 	return nil
 }
 
@@ -367,16 +375,23 @@ func (f *fakeScreen) Latest() string { return f.latest }
 
 // fakeHotkey records Apply calls so settings tests never install the real OS
 // keyboard hook (libuiohook segfaults readily outside a real session).
+// untrusted simulates a machine where Accessibility is denied: like the real
+// listener, Apply then reports "prompted" exactly when it was enabled and
+// allowed to prompt.
 type fakeHotkey struct {
-	applies []struct {
-		enabled bool
-		spec    hotkey.Spec
+	untrusted bool
+	applies   []struct {
+		enabled     bool
+		spec        hotkey.Spec
+		allowPrompt bool
 	}
 }
 
-func (f *fakeHotkey) Apply(_ context.Context, enabled bool, spec hotkey.Spec) {
+func (f *fakeHotkey) Apply(_ context.Context, enabled bool, spec hotkey.Spec, allowPrompt bool) bool {
 	f.applies = append(f.applies, struct {
-		enabled bool
-		spec    hotkey.Spec
-	}{enabled, spec})
+		enabled     bool
+		spec        hotkey.Spec
+		allowPrompt bool
+	}{enabled, spec, allowPrompt})
+	return f.untrusted && enabled && allowPrompt
 }

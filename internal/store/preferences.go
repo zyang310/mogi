@@ -31,7 +31,24 @@ const (
 	keyLastCompany         = "last_company"
 	keyLastDifficulty      = "last_difficulty"
 	keyKeyMode             = "key_mode"
+	keyHotkeyPrompted      = "hotkey_prompted"
 )
+
+// HotkeyPrompted reports whether the app has ever shown the OS permission
+// dialog for the global voice hotkey (the macOS Accessibility prompt). Not part
+// of models.Preferences: it is one-shot internal state, not a user choice, so
+// the frontend never sees it. ClearAll wipes it with the rest of the table —
+// a full reset deliberately returns the app to first-run behavior.
+func (db *DB) HotkeyPrompted() (bool, error) {
+	v, err := db.getPref(keyHotkeyPrompted)
+	return v == "1", err
+}
+
+// MarkHotkeyPrompted records that the hotkey permission dialog has been shown,
+// so it is never summoned again (see Settings.ApplyHotkey).
+func (db *DB) MarkHotkeyPrompted() error {
+	return db.setPref(keyHotkeyPrompted, "1")
+}
 
 // GetAPIKey retrieves a stored API key. provider is "openrouter", "elevenlabs",
 // or "google". Returns empty string (no error) if not set.

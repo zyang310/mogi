@@ -25,7 +25,9 @@ func TestApplyDisabledNeverStarts(t *testing.T) {
 		t.Fatalf("ParseSpec(%q): %v", DefaultSpec, err)
 	}
 	l := New()
-	l.Apply(t.Context(), false, spec)
+	if l.Apply(t.Context(), false, spec, true) {
+		t.Fatal("a disabled apply must never reach the permission check, let alone prompt")
+	}
 
 	if st := l.Status(); st.Running || st.HookEnabled {
 		t.Fatalf("disabled listener should be idle, got running=%v hookEnabled=%v", st.Running, st.HookEnabled)

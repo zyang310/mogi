@@ -20,6 +20,8 @@ type SettingsStore interface {
 	GetManagedPinnedModel() (string, error)
 	GetPreferences() (models.Preferences, error)
 	SavePreferences(p models.Preferences) error
+	HotkeyPrompted() (bool, error)
+	MarkHotkeyPrompted() error
 	ListStarredCompanies() ([]string, error)
 	SetCompanyStarred(slug string, starred bool) error
 	ClearAll() error
@@ -27,9 +29,9 @@ type SettingsStore interface {
 
 // HotkeyApplier is the control surface of the global push-to-talk hook.
 // *hotkey.Listener satisfies it; tests use a fake so no OS keyboard hook is
-// ever installed.
+// ever installed. Apply reports whether the OS permission dialog was shown.
 type HotkeyApplier interface {
-	Apply(ctx context.Context, enabled bool, spec hotkey.Spec)
+	Apply(ctx context.Context, enabled bool, spec hotkey.Spec, allowPrompt bool) (prompted bool)
 }
 
 // Settings owns API keys and preferences — including their propagation into
@@ -190,6 +192,13 @@ func (s *Settings) Update(ctx context.Context, prefs models.Preferences) error {
 // The hook starts on first enable and is never restarted — enabling, disabling,
 // and rebinding all flow through Apply, which swaps guarded fields on the
 // running hook. Best-effort — a bad/empty key falls back to the default.
+//
+// It also enforces the ask-once-ever rule for the macOS Accessibility dialog:
+// the first Apply that finds the app untrusted may summon it, and the moment it
+// is shown a store flag makes every later check silent — a denial is respected
+// instead of re-prompting each launch, with the Settings pane hint as the only
+// remaining reminder. (ClearAll wipes the flag, so a full reset legitimately
+// asks once again.)
 func (s *Settings) ApplyHotkey(ctx context.Context) {
 	prefs, err := s.store.GetPreferences()
 	if err != nil {
@@ -199,7 +208,11 @@ func (s *Settings) ApplyHotkey(ctx context.Context) {
 	if perr != nil {
 		spec, _ = hotkey.ParseSpec(hotkey.DefaultSpec)
 	}
-	s.hotkey.Apply(ctx, prefs.PushToTalkEnabled, spec)
+	alreadyPrompted, _ := s.store.HotkeyPrompted()
+	if s.hotkey.Apply(ctx, prefs.PushToTalkEnabled, spec, !alreadyPrompted) {
+		// Best-effort: a failed write costs one extra prompt on a later launch.
+		_ = s.store.MarkHotkeyPrompted()
+	}
 }
 
 // ApplySavedRegion loads the persisted capture display/region and applies it to

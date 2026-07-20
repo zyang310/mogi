@@ -14,12 +14,16 @@ package hotkey
 #include <ApplicationServices/ApplicationServices.h>
 #include <stdbool.h>
 
-static bool mogi_accessibility_trusted(void) {
-	// Mirrors libuiohook's own is_accessibility_enabled(), prompt included: it
-	// passes kAXTrustedCheckOptionPrompt=true, so a user who has not granted
-	// the permission still gets the system "open Accessibility settings"
-	// dialog they used to get from gohook. macOS shows it only while the
-	// process is untrusted, so a granted app never sees it.
+static bool mogi_accessibility_trusted(bool prompt) {
+	// With prompt=true this mirrors libuiohook's own is_accessibility_enabled():
+	// kAXTrustedCheckOptionPrompt makes macOS show the system "open
+	// Accessibility settings" dialog while the process is untrusted (a granted
+	// app never sees it). macOS re-shows that dialog on EVERY prompting check
+	// while untrusted — a denial is not remembered — which is why the caller
+	// passes prompt=true at most once ever and checks silently afterwards.
+	if (!prompt) {
+		return AXIsProcessTrusted();
+	}
 	const void *keys[] = {kAXTrustedCheckOptionPrompt};
 	const void *values[] = {kCFBooleanTrue};
 	CFDictionaryRef options = CFDictionaryCreate(
@@ -33,5 +37,8 @@ static bool mogi_accessibility_trusted(void) {
 import "C"
 
 // accessibilityTrusted reports whether macOS will let this process install a
-// global event tap, prompting the user once if it has not been granted yet.
-func accessibilityTrusted() bool { return bool(C.mogi_accessibility_trusted()) }
+// global event tap. With prompt=true an untrusted check also summons the system
+// permission dialog; with prompt=false it is silent either way.
+func accessibilityTrusted(prompt bool) bool {
+	return bool(C.mogi_accessibility_trusted(C.bool(prompt)))
+}

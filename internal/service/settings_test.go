@@ -63,6 +63,48 @@ func TestApplyHotkeyFallsBackToDefault(t *testing.T) {
 	}
 }
 
+// TestApplyHotkeyPromptsOnceEver pins the ask-once rule for the macOS
+// Accessibility dialog: on an untrusted machine the first apply may prompt, and
+// as soon as the listener reports the dialog was shown, the store flag makes
+// every later apply silent — a denial must not re-summon the dialog on each
+// launch (the Settings pane hint is the only remaining reminder).
+func TestApplyHotkeyPromptsOnceEver(t *testing.T) {
+	st := &fakeStore{getPreferences: func() (models.Preferences, error) {
+		return models.Preferences{PushToTalkEnabled: true, PushToTalkKey: "RightAlt"}, nil
+	}}
+	s, _, _, hk := settingsWith(st)
+	hk.untrusted = true
+
+	s.ApplyHotkey(context.Background()) // first launch: allowed to prompt
+	s.ApplyHotkey(context.Background()) // every later launch: silent
+
+	if len(hk.applies) != 2 || !hk.applies[0].allowPrompt || hk.applies[1].allowPrompt {
+		t.Fatalf("hotkey applies = %+v, want prompt allowed on the first apply only", hk.applies)
+	}
+	if !st.hotkeyPrompted {
+		t.Error("dialog was shown but never recorded in the store")
+	}
+}
+
+// TestApplyHotkeyTrustedNeverBurnsThePrompt verifies the flag is only written
+// when the dialog actually appeared: on a trusted machine (Apply reports no
+// prompt) the ask stays unspent, so a user who revokes the permission later
+// still gets guided once.
+func TestApplyHotkeyTrustedNeverBurnsThePrompt(t *testing.T) {
+	st := &fakeStore{getPreferences: func() (models.Preferences, error) {
+		return models.Preferences{PushToTalkEnabled: true, PushToTalkKey: "RightAlt"}, nil
+	}}
+	s, _, _, hk := settingsWith(st)
+
+	s.ApplyHotkey(context.Background())
+	if st.hotkeyPrompted {
+		t.Error("no dialog was shown, but the ask-once flag was burned")
+	}
+	if len(hk.applies) != 1 || !hk.applies[0].allowPrompt {
+		t.Errorf("hotkey applies = %+v, want prompting still allowed while unspent", hk.applies)
+	}
+}
+
 // TestAPIKeysFlipRegistry verifies key writes activate/deactivate the live
 // client slots, and that a failed store write leaves the registry untouched.
 func TestAPIKeysFlipRegistry(t *testing.T) {
