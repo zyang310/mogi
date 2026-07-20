@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/zyang310/mogi/compare/v0.11.0...v0.11.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* update documentation and comments to reflect app signing and notarization ([a8e099f](https://github.com/zyang310/mogi/commit/a8e099f4253ab58dbc63f18cd52b68bbf5a2a271))
+
 ## [0.11.0](https://github.com/zyang310/mogi/compare/v0.10.0...v0.11.0) (2026-07-20)
 
 
