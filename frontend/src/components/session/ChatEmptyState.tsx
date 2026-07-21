@@ -78,9 +78,10 @@ export default function ChatEmptyState({ onSend, disabled, showMicHint }: Props)
         <p className="chat-empty-fullscreen-tip">
           <span className="material-symbols-outlined">desktop_windows</span>
           <span>
-            Keep your coding window <strong>filled to the screen</strong> — not
-            in macOS full-screen (green button). Full-screen apps get their own
-            Space and hide floating overlays like Mogi.
+            Keep your coding window <strong>filled to the screen</strong> — hold{" "}
+            <strong>⌥ Option</strong> and click the green button to zoom, not
+            full-screen. Full-screen apps get their own Space and hide floating
+            overlays like Mogi.
           </span>
         </p>
       )}
