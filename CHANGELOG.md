@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/zyang310/mogi/compare/v0.14.0...v0.14.1) (2026-07-21)
+
+
+### Bug Fixes
+
+* update fullscreen tip to clarify zooming behavior on macOS ([a07aea6](https://github.com/zyang310/mogi/commit/a07aea6a8b84b8907ab65a0ceefa6d25de143cc4))
+
 ## [0.14.0](https://github.com/zyang310/mogi/compare/v0.13.0...v0.14.0) (2026-07-21)
 
 
