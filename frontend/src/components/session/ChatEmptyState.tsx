@@ -24,6 +24,13 @@ interface Props {
   showMicHint: boolean;
 }
 
+// macOS-only: native full-screen (green button) gives an app its own Space and
+// evicts every other window, so the floating overlay can't sit over it. The tip
+// below steers users to a filled/zoomed window instead. Detected from the user
+// agent rather than a backend round-trip — it's a display-only hint, and
+// Windows/Linux overlays aren't evicted by full-screen, so they don't need it.
+const IS_MAC = typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
+
 // ChatEmptyState is the "ready to begin" placeholder shown in Chat before the
 // first message — a breathing icon avatar, headline, body copy, and three
 // quick-start chips that send a canned first message via onSend.
@@ -64,6 +71,17 @@ export default function ChatEmptyState({ onSend, disabled, showMicHint }: Props)
         <p className="chat-empty-mic-hint">
           <span className="material-symbols-outlined">mic</span>
           or press the mic to speak your answer
+        </p>
+      )}
+
+      {IS_MAC && (
+        <p className="chat-empty-fullscreen-tip">
+          <span className="material-symbols-outlined">desktop_windows</span>
+          <span>
+            Keep your coding window <strong>filled to the screen</strong> — not
+            in macOS full-screen (green button). Full-screen apps get their own
+            Space and hide floating overlays like Mogi.
+          </span>
         </p>
       )}
     </div>

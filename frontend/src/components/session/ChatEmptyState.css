@@ -120,3 +120,33 @@
 .chat-empty-mic-hint .material-symbols-outlined {
   font-size: 16px;
 }
+
+/* Full-screen guidance (macOS only) — a subtle callout steering users to a
+   filled window instead of native full-screen, which would hide the overlay. */
+.chat-empty-fullscreen-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 420px;
+  margin: 20px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 12px;
+  background-color: var(--surface-container-low);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--on-surface-variant);
+  text-align: left;
+}
+
+.chat-empty-fullscreen-tip .material-symbols-outlined {
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-size: 18px;
+  color: var(--secondary);
+}
+
+.chat-empty-fullscreen-tip strong {
+  font-weight: 600;
+  color: var(--on-surface);
+}
