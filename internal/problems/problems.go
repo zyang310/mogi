@@ -29,9 +29,12 @@ import (
 var problemsCSV string
 
 const (
-	// mockMinPool is the smallest pool where a random two-problem draw is
+	// mockMinPool is the smallest company pool where a random two-problem draw is
 	// meaningful; below it, browse-and-pick serves the company instead.
 	mockMinPool = 5
+	// mockMinSet is the floor for a custom question set instead: the set is
+	// user-curated, so two distinct questions already make a deliberate pair.
+	mockMinSet = 2
 	// recentPoolThreshold is how many recent-window problems a company needs
 	// before the mock draw prefers that subset over the full pool. Below it, the
 	// recent set is too thin and would starve variety.
@@ -137,27 +140,19 @@ func MockPair(slug string) ([2]models.Problem, error) {
 	return mockPair(problems, rand.New(rand.NewSource(time.Now().UnixNano())))
 }
 
-// mockPair implements the frequency-weighted, fallback-laden draw over a
-// company's full problem pool. It is split from MockPair so tests can inject a
-// seeded *rand.Rand for deterministic results. Rules:
-//  1. Draw from the recent subset when it has >= recentPoolThreshold problems,
-//     else the full pool (recency is the strongest "realistically asked" signal,
-//     but only the big companies have enough of it).
-//  2. Pick Q2 (the harder one) first: frequency-weighted from Medium+Hard, or
-//     the whole draw pool if it has no Medium/Hard.
-//  3. Pick Q1 (the easier one): frequency-weighted from strictly-lower tiers.
-//     If none exist, fall back to Q2's own tier ordered by acceptance (higher =
-//     easier first); if that is also empty, any other problem ordered by tier
-//     then acceptance.
-//
-// Q1 is always different from Q2. It errors when the pool is smaller than
-// mockMinPool, where a random draw is theatre rather than practice.
+// mockPair implements the company-pool draw: it narrows to the recent subset
+// when that subset is big enough, then delegates to drawPair for the weighted
+// pair. It is split from MockPair so tests can inject a seeded *rand.Rand for
+// deterministic results. It errors when the pool is smaller than mockMinPool,
+// where a random draw is theatre rather than practice.
 func mockPair(full []models.Problem, r *rand.Rand) ([2]models.Problem, error) {
 	if len(full) < mockMinPool {
 		return [2]models.Problem{}, fmt.Errorf("problems: pool too small for a mock interview (%d problems)", len(full))
 	}
 
-	// 1. Draw pool: recent subset when it's big enough, else the full pool.
+	// Draw pool: recent subset when it's big enough, else the full pool —
+	// recency is the strongest "realistically asked" signal, but only the big
+	// companies have enough of it.
 	pool := full
 	var recent []models.Problem
 	for _, p := range full {
@@ -169,7 +164,62 @@ func mockPair(full []models.Problem, r *rand.Rand) ([2]models.Problem, error) {
 		pool = recent
 	}
 
-	// 2. Q2 (harder): frequency-weighted from Medium+Hard, else the whole pool.
+	return drawPair(pool, r), nil
+}
+
+// MockPairFrom draws a mock pair from a caller-curated pool — a custom question
+// set. Unlike MockPair it accepts any pool of >= mockMinSet distinct problems
+// and never narrows to the recent subset: the user curated exactly the pool
+// they want drawn from. Duplicate entries (same URL) are collapsed first so a
+// set stored with repeats can never yield Q1 == Q2. It seeds a fresh RNG so
+// each call varies; see mockPairFrom for the deterministic, testable core.
+func MockPairFrom(pool []models.Problem) ([2]models.Problem, error) {
+	return mockPairFrom(pool, rand.New(rand.NewSource(time.Now().UnixNano())))
+}
+
+// mockPairFrom implements the custom-set draw. The error message is shown
+// verbatim in the UI (under a `set "name":` wrap), so it skips the package
+// prefix and speaks to the user.
+func mockPairFrom(pool []models.Problem, r *rand.Rand) ([2]models.Problem, error) {
+	deduped := dedupeByURL(pool)
+	if len(deduped) < mockMinSet {
+		return [2]models.Problem{}, fmt.Errorf("a mock needs at least %d distinct questions (this set has %d)", mockMinSet, len(deduped))
+	}
+	return drawPair(deduped, r), nil
+}
+
+// dedupeByURL drops duplicate problems (same URL, the identity key), keeping
+// first occurrences in their original order. Blank URLs are passed through
+// rather than collapsed — the service layer rejects them at save time, so this
+// is defensive only.
+func dedupeByURL(pool []models.Problem) []models.Problem {
+	seen := make(map[string]bool, len(pool))
+	out := make([]models.Problem, 0, len(pool))
+	for _, p := range pool {
+		if p.URL != "" {
+			if seen[p.URL] {
+				continue
+			}
+			seen[p.URL] = true
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// drawPair is the tiered, frequency-weighted core shared by the company draw
+// (mockPair) and the custom-set draw (mockPairFrom). The pool must hold at
+// least two entries — both callers guarantee it. Rules:
+//  1. Pick Q2 (the harder one) first: frequency-weighted from Medium+Hard, or
+//     the whole draw pool if it has no Medium/Hard.
+//  2. Pick Q1 (the easier one): frequency-weighted from strictly-lower tiers.
+//     If none exist, fall back to Q2's own tier ordered by acceptance (higher =
+//     easier first); if that is also empty, any other problem ordered by tier
+//     then acceptance.
+//
+// Q1 is always a different entry than Q2.
+func drawPair(pool []models.Problem, r *rand.Rand) [2]models.Problem {
+	// 1. Q2 (harder): frequency-weighted from Medium+Hard, else the whole pool.
 	var harder []int
 	for i, p := range pool {
 		if tier(p.Difficulty) >= tier("Medium") {
@@ -182,7 +232,7 @@ func mockPair(full []models.Problem, r *rand.Rand) ([2]models.Problem, error) {
 	q2i := weightedPick(pool, harder, r)
 	q2 := pool[q2i]
 
-	// 3a. Q1 from strictly-lower tiers — guaranteed easier than Q2.
+	// 2a. Q1 from strictly-lower tiers — guaranteed easier than Q2.
 	var lower []int
 	for i, p := range pool {
 		if tier(p.Difficulty) < tier(q2.Difficulty) {
@@ -191,10 +241,10 @@ func mockPair(full []models.Problem, r *rand.Rand) ([2]models.Problem, error) {
 	}
 	if len(lower) > 0 {
 		q1 := pool[weightedPick(pool, lower, r)]
-		return [2]models.Problem{q1, q2}, nil
+		return [2]models.Problem{q1, q2}
 	}
 
-	// 3b. No lower tier: Q2's own tier (excluding Q2), ordered by acceptance.
+	// 2b. No lower tier: Q2's own tier (excluding Q2), ordered by acceptance.
 	var same []int
 	for i, p := range pool {
 		if i != q2i && tier(p.Difficulty) == tier(q2.Difficulty) {
@@ -203,10 +253,10 @@ func mockPair(full []models.Problem, r *rand.Rand) ([2]models.Problem, error) {
 	}
 	if len(same) > 0 {
 		q1 := pool[weightedPick(pool, same, r)]
-		return orderByAcceptance(q1, q2), nil
+		return orderByAcceptance(q1, q2)
 	}
 
-	// 3c. Extreme degenerate: Q2 is the lone member of its tier and no lower tier
+	// 2c. Extreme degenerate: Q2 is the lone member of its tier and no lower tier
 	//     exists (e.g. a single Medium among all-Hard). Pair with any other
 	//     problem, ordered by tier then acceptance so the easier one leads.
 	var others []int
@@ -216,7 +266,7 @@ func mockPair(full []models.Problem, r *rand.Rand) ([2]models.Problem, error) {
 		}
 	}
 	q1 := pool[weightedPick(pool, others, r)]
-	return orderByTier(q1, q2), nil
+	return orderByTier(q1, q2)
 }
 
 // tier ranks a difficulty for ordering: Easy < Medium < Hard. Unknown values are

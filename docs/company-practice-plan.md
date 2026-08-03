@@ -9,6 +9,8 @@
 > Roadmap entry: [roadmap.md](roadmap.md) → Phase 6. **Status: implemented (Phases 0–5).**
 > *Plan v2 (2026-07-01): new data source, Mock Interview replaces the randomize pick, storage
 > decision recorded.*
+> *Custom question sets (2026-08) build on this mode — per-company curated draw pools; see
+> [question-sets-plan.md](question-sets-plan.md).*
 
 ## Context
 

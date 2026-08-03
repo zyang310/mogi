@@ -105,5 +105,10 @@ screen-driven interview flavored by that company's style. **The default Hub flow
       (ids/acceptance joined from LeetCode's public algorithms API; upstream display names carried
       as a `name` column); a biweekly scheduled workflow (`refresh-problems.yml`) regenerates the
       CSV and opens a PR
+- [x] Custom question sets (2026-08): per-company user-curated subsets (SQLite `question_sets`,
+      full problem snapshots in a JSON column) with a set editor in the company view; a set mock
+      draws its pair from the set only via `problems.MockPairFrom` (min 2, no recent-narrowing,
+      deduped by URL), single-question starts reuse the existing flow — see
+      [question-sets-plan.md](question-sets-plan.md)
 - [ ] Stretch (deferred): mock repeat-avoidance, elapsed-time pacing context, embed +
       background-refresh, AI-generated opener

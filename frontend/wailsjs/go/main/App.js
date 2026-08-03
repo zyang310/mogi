@@ -18,6 +18,10 @@ export function DeleteAPIKey(arg1) {
   return window['go']['main']['App']['DeleteAPIKey'](arg1);
 }
 
+export function DeleteQuestionSet(arg1) {
+  return window['go']['main']['App']['DeleteQuestionSet'](arg1);
+}
+
 export function DeleteSession(arg1) {
   return window['go']['main']['App']['DeleteSession'](arg1);
 }
@@ -82,6 +86,10 @@ export function ListDisplays() {
   return window['go']['main']['App']['ListDisplays']();
 }
 
+export function ListQuestionSets(arg1) {
+  return window['go']['main']['App']['ListQuestionSets'](arg1);
+}
+
 export function ListSessions() {
   return window['go']['main']['App']['ListSessions']();
 }
@@ -130,6 +138,10 @@ export function RevealDatabaseFile() {
   return window['go']['main']['App']['RevealDatabaseFile']();
 }
 
+export function SaveQuestionSet(arg1) {
+  return window['go']['main']['App']['SaveQuestionSet'](arg1);
+}
+
 export function SendMessage(arg1) {
   return window['go']['main']['App']['SendMessage'](arg1);
 }
@@ -172,6 +184,10 @@ export function StartMockInterview(arg1) {
 
 export function StartSession(arg1) {
   return window['go']['main']['App']['StartSession'](arg1);
+}
+
+export function StartSetMockInterview(arg1) {
+  return window['go']['main']['App']['StartSetMockInterview'](arg1);
 }
 
 export function StopCapture() {

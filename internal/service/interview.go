@@ -37,6 +37,7 @@ type InterviewStore interface {
 	GetSession(id string) (models.Session, error)
 	UpdateSessionMeta(id, title, difficulty, finalCode string) error
 	SetSessionCompany(id, company, mode string) error
+	GetQuestionSet(id string) (models.QuestionSet, error)
 }
 
 // activeSession holds the in-memory state for a running interview.
@@ -272,6 +273,24 @@ func (s *Interview) StartMock(ctx context.Context, slug string) (models.CompanyS
 		return models.CompanySessionStart{}, err
 	}
 	return s.startCompanyInterview(ctx, slug, pair[:])
+}
+
+// StartSetMock starts a two-problem mock drawn from a custom question set. The
+// pair comes from the set's stored snapshots (minimum two distinct questions,
+// no recent-subset narrowing — the user curated exactly this pool); everything
+// downstream is the shared startCompanyInterview path, so a set mock behaves
+// exactly like a pool mock: same persona, opener, prompt, banner, and history
+// tagging under the owning company.
+func (s *Interview) StartSetMock(ctx context.Context, setID string) (models.CompanySessionStart, error) {
+	set, err := s.store.GetQuestionSet(setID)
+	if err != nil {
+		return models.CompanySessionStart{}, err
+	}
+	pair, err := problems.MockPairFrom(set.Questions)
+	if err != nil {
+		return models.CompanySessionStart{}, fmt.Errorf("set %q: %w", set.Name, err)
+	}
+	return s.startCompanyInterview(ctx, set.CompanySlug, pair[:])
 }
 
 // startCompanyInterview is the shared body behind StartCompany and StartMock.

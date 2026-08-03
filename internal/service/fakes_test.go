@@ -14,8 +14,9 @@ import (
 // un-overridden writes succeed silently. None of them touch SQLite, the
 // network, or OS hooks — that isolation is the point of the service layer.
 
-// fakeStore satisfies all four per-service store interfaces (InterviewStore,
-// HistoryStore, VoiceStore, SettingsStore) so one fake serves every test.
+// fakeStore satisfies every per-service store interface (InterviewStore,
+// HistoryStore, VoiceStore, SettingsStore, AccountStore, SetsStore) so one fake
+// serves every test.
 type fakeStore struct {
 	getPreferences        func() (models.Preferences, error)
 	savePreferences       func(p models.Preferences) error
@@ -47,6 +48,10 @@ type fakeStore struct {
 	getManagedPinnedModel func() (string, error)
 	setManagedPinnedModel func(model string) error
 	deleteManagedData     func() error
+	listQuestionSets      func(companySlug string) ([]models.QuestionSet, error)
+	getQuestionSet        func(id string) (models.QuestionSet, error)
+	saveQuestionSet       func(set models.QuestionSet) error
+	deleteQuestionSet     func(id string) error
 }
 
 func (f *fakeStore) GetPreferences() (models.Preferences, error) {
@@ -255,6 +260,34 @@ func (f *fakeStore) GetSessionDebrief(id string) (string, error) {
 func (f *fakeStore) SaveSessionDebrief(id, debrief string) error {
 	if f.saveSessionDebrief != nil {
 		return f.saveSessionDebrief(id, debrief)
+	}
+	return nil
+}
+
+func (f *fakeStore) ListQuestionSets(companySlug string) ([]models.QuestionSet, error) {
+	if f.listQuestionSets != nil {
+		return f.listQuestionSets(companySlug)
+	}
+	return nil, nil
+}
+
+func (f *fakeStore) GetQuestionSet(id string) (models.QuestionSet, error) {
+	if f.getQuestionSet != nil {
+		return f.getQuestionSet(id)
+	}
+	return models.QuestionSet{ID: id}, nil
+}
+
+func (f *fakeStore) SaveQuestionSet(set models.QuestionSet) error {
+	if f.saveQuestionSet != nil {
+		return f.saveQuestionSet(set)
+	}
+	return nil
+}
+
+func (f *fakeStore) DeleteQuestionSet(id string) error {
+	if f.deleteQuestionSet != nil {
+		return f.deleteQuestionSet(id)
 	}
 	return nil
 }

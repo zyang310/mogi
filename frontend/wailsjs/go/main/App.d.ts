@@ -12,6 +12,8 @@ export function ClearAllLocalData():Promise<void>;
 
 export function DeleteAPIKey(arg1:string):Promise<void>;
 
+export function DeleteQuestionSet(arg1:string):Promise<void>;
+
 export function DeleteSession(arg1:string):Promise<void>;
 
 export function EndSession(arg1:string):Promise<void>;
@@ -44,6 +46,8 @@ export function ListCompanyProblems(arg1:string):Promise<Array<models.Problem>>;
 
 export function ListDisplays():Promise<Array<capture.DisplayInfo>>;
 
+export function ListQuestionSets(arg1:string):Promise<Array<models.QuestionSet>>;
+
 export function ListSessions():Promise<Array<models.SessionSummary>>;
 
 export function ListStarredCompanies():Promise<Array<string>>;
@@ -68,6 +72,8 @@ export function RetryHotkey():Promise<void>;
 
 export function RevealDatabaseFile():Promise<void>;
 
+export function SaveQuestionSet(arg1:models.QuestionSet):Promise<models.QuestionSet>;
+
 export function SendMessage(arg1:string):Promise<string>;
 
 export function SetAPIKey(arg1:string,arg2:string):Promise<void>;
@@ -89,6 +95,8 @@ export function StartCompanySession(arg1:string,arg2:models.Problem):Promise<mod
 export function StartMockInterview(arg1:string):Promise<models.CompanySessionStart>;
 
 export function StartSession(arg1:string):Promise<models.Session>;
+
+export function StartSetMockInterview(arg1:string):Promise<models.CompanySessionStart>;
 
 export function StopCapture():Promise<void>;
 

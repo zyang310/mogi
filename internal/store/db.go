@@ -60,7 +60,8 @@ func (db *DB) Path() string {
 // ClearAll deletes every row from every table in one transaction, resetting the
 // app to a first-run state: sessions, transcripts, preferences (which also hold
 // the API keys — both the BYOK keys and the managed test-account rows, so a full
-// wipe also signs the device out of the managed tier), and starred companies.
+// wipe also signs the device out of the managed tier), starred companies, and
+// custom question sets.
 // The schema and file are left in place — GetPreferences falls back to defaults
 // (KeyMode back to "byok") and GetAPIKey/GetManagedKey return empty. Messages go
 // first to respect the foreign key into sessions.
@@ -71,7 +72,7 @@ func (db *DB) ClearAll() error {
 	}
 	defer tx.Rollback()
 
-	for _, table := range []string{"messages", "sessions", "preferences", "starred_companies"} {
+	for _, table := range []string{"messages", "sessions", "preferences", "starred_companies", "question_sets"} {
 		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
 			return fmt.Errorf("store: clear %s: %w", table, err)
 		}
@@ -114,6 +115,14 @@ func (db *DB) migrate() error {
 		`CREATE TABLE IF NOT EXISTS starred_companies (
 			slug       TEXT PRIMARY KEY,
 			starred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);`,
+		`CREATE TABLE IF NOT EXISTS question_sets (
+			id           TEXT PRIMARY KEY,
+			company_slug TEXT NOT NULL,
+			name         TEXT NOT NULL,
+			questions    TEXT NOT NULL, -- JSON array of models.Problem snapshots
+			created_at   DATETIME NOT NULL,
+			updated_at   DATETIME NOT NULL
 		);`,
 	}
 	for _, s := range stmts {

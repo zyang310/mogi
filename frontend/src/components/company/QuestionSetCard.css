@@ -1,0 +1,152 @@
+/* One custom question set: a header row (expand / name / count / actions) and,
+   when expanded, the set's questions. Mirrors the .problem-row density so the
+   sets section reads as part of the same page. */
+
+.qset-card {
+  border: 1px solid var(--level-1-border);
+  border-radius: 12px;
+  background: var(--surface-container-low);
+  overflow: hidden;
+}
+
+.qset-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background-color 0.13s;
+}
+
+.qset-row:hover {
+  background: var(--surface-container);
+}
+
+.qset-chevron {
+  font-size: 20px;
+  color: var(--on-surface-variant);
+  flex: none;
+}
+
+.qset-text {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.qset-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qset-count {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+.qset-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.qset-mock-btn .material-symbols-outlined {
+  font-size: 16px;
+}
+
+/* Square icon button, sized to sit beside the small Mock button. */
+.qset-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.qset-icon-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.qset-icon-btn:hover {
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+}
+
+.qset-icon-btn.danger-hover:hover,
+.qset-icon-btn.danger {
+  color: var(--error);
+}
+
+/* Inline two-step delete confirm (same convention as SessionHistoryCard). */
+.qset-confirm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qset-confirm-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--error);
+  margin-right: 2px;
+}
+
+/* Expanded question list. */
+.qset-questions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--level-1-border);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.qset-question {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px 9px 44px; /* left-aligns titles under the header name */
+  border-bottom: 1px solid var(--level-1-border);
+  font-size: 13px;
+}
+
+.qset-question:last-child {
+  border-bottom: none;
+}
+
+.qset-q-num {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--outline);
+  min-width: 34px;
+}
+
+.qset-q-title {
+  color: var(--on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qset-q-spacer {
+  flex: 1;
+}
+
+.qset-q-start {
+  padding: 5px 12px;
+  flex: none;
+}

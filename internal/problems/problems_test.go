@@ -243,6 +243,124 @@ func TestMockPairPublic(t *testing.T) {
 	checkPairInvariant(t, pair)
 }
 
+// TestMockPairFromInvariants runs seeded draws over hand-built curated sets —
+// including shapes MockPair would reject (tiny pools) — asserting the pair is
+// always distinct and ordered easier-first.
+func TestMockPairFromInvariants(t *testing.T) {
+	cases := map[string][]models.Problem{
+		"mixed tiers": {
+			mkProb(1, "Easy", 90, 70, false), mkProb(2, "Medium", 70, 50, false),
+			mkProb(3, "Hard", 50, 30, false), mkProb(4, "Medium", 30, 45, false),
+			mkProb(5, "Easy", 10, 60, false),
+		},
+		"exactly two, easy+medium": {
+			mkProb(1, "Easy", 40, 70, false), mkProb(2, "Medium", 80, 50, false),
+		},
+		"exactly two, same tier": {
+			mkProb(1, "Medium", 40, 70, false), mkProb(2, "Medium", 80, 50, false),
+		},
+		"all same tier": {
+			mkProb(1, "Medium", 90, 40, false), mkProb(2, "Medium", 70, 55, false),
+			mkProb(3, "Medium", 50, 30, false), mkProb(4, "Medium", 30, 60, false),
+			mkProb(5, "Medium", 10, 45, false), mkProb(6, "Medium", 5, 50, false),
+		},
+		"zero frequency (uniform fallback)": {
+			mkProb(1, "Easy", 0, 70, false), mkProb(2, "Medium", 0, 50, false),
+			mkProb(3, "Hard", 0, 30, false),
+		},
+	}
+	for name, set := range cases {
+		t.Run(name, func(t *testing.T) {
+			for seed := int64(0); seed < 300; seed++ {
+				pair, err := mockPairFrom(set, rand.New(rand.NewSource(seed)))
+				if err != nil {
+					t.Fatalf("seed %d: %v", seed, err)
+				}
+				checkPairInvariant(t, pair)
+			}
+		})
+	}
+}
+
+// TestMockPairFromDuplicateInput proves the set draw never returns the same
+// problem twice even when the stored set contains repeats, and that the
+// minimum-size check counts distinct questions, not raw entries.
+func TestMockPairFromDuplicateInput(t *testing.T) {
+	a := mkProb(1, "Easy", 50, 70, false)
+	b := mkProb(2, "Medium", 50, 50, false)
+
+	if _, err := mockPairFrom([]models.Problem{a, a}, rand.New(rand.NewSource(1))); err == nil {
+		t.Error("two copies of one question should error (only one distinct)")
+	}
+
+	// [A, A, B] has exactly two distinct questions, so every draw must be {A, B};
+	// checkPairInvariant fatals if a duplicate pair ever slips through.
+	for seed := int64(0); seed < 300; seed++ {
+		pair, err := mockPairFrom([]models.Problem{a, a, b}, rand.New(rand.NewSource(seed)))
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+		checkPairInvariant(t, pair)
+	}
+}
+
+// TestMockPairFromTooSmall pins the set floor: zero or one question errors, two
+// distinct questions succeed (unlike the company draw's mockMinPool of 5).
+func TestMockPairFromTooSmall(t *testing.T) {
+	if _, err := mockPairFrom(nil, rand.New(rand.NewSource(1))); err == nil {
+		t.Error("empty set should error")
+	}
+	one := []models.Problem{mkProb(1, "Easy", 50, 60, false)}
+	if _, err := mockPairFrom(one, rand.New(rand.NewSource(1))); err == nil {
+		t.Error("one-question set should error")
+	}
+	two := []models.Problem{
+		mkProb(1, "Easy", 50, 60, false), mkProb(2, "Hard", 50, 30, false),
+	}
+	pair, err := mockPairFrom(two, rand.New(rand.NewSource(1)))
+	if err != nil {
+		t.Fatalf("two-question set: %v", err)
+	}
+	checkPairInvariant(t, pair)
+}
+
+// TestMockPairFromIgnoresRecentFilter builds a set the company draw would
+// narrow to its recent subset (>= recentPoolThreshold recent problems) plus one
+// non-recent Hard. The set draw must still consider the non-recent entry: Q2 is
+// always that Hard, which a recent-narrowed draw could never pick.
+func TestMockPairFromIgnoresRecentFilter(t *testing.T) {
+	var set []models.Problem
+	for i := 1; i <= recentPoolThreshold; i++ {
+		set = append(set, mkProb(i, "Easy", 10, 60, true))
+	}
+	hard := mkProb(999, "Hard", 10, 20, false)
+	set = append(set, hard)
+
+	for seed := int64(0); seed < 300; seed++ {
+		pair, err := mockPairFrom(set, rand.New(rand.NewSource(seed)))
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+		checkPairInvariant(t, pair)
+		if pair[1].ID != hard.ID {
+			t.Fatalf("seed %d: Q2 = %+v, want the lone Hard (recent filter must not apply)", seed, pair[1])
+		}
+	}
+}
+
+// TestMockPairFromPublic smoke-tests the seeded public entry point.
+func TestMockPairFromPublic(t *testing.T) {
+	set := []models.Problem{
+		mkProb(1, "Easy", 50, 60, false), mkProb(2, "Medium", 50, 45, false),
+		mkProb(3, "Hard", 50, 30, false),
+	}
+	pair, err := MockPairFrom(set)
+	if err != nil {
+		t.Fatalf("MockPairFrom: %v", err)
+	}
+	checkPairInvariant(t, pair)
+}
+
 // checkPairInvariant asserts the two problems are distinct and ordered
 // easier-first: strictly-lower tier, or same tier with acceptance not increasing.
 func checkPairInvariant(t *testing.T, pair [2]models.Problem) {

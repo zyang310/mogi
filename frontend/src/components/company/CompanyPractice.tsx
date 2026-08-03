@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  DeleteQuestionSet,
   ListCompanies,
   ListCompanyProblems,
+  ListQuestionSets,
   ListStarredCompanies,
   SetCompanyStarred,
   StartCompanySession,
   StartMockInterview,
+  StartSetMockInterview,
   OpenURL,
   models,
 } from "../../lib/wailsBridge";
 import { useScrollFade } from "../../lib/useScrollFade";
+import QuestionSetCard from "./QuestionSetCard";
+import SetEditor from "./SetEditor";
 import "./CompanyPractice.css";
 
 type Difficulty = "All" | "Easy" | "Medium" | "Hard";
@@ -130,6 +135,18 @@ export default function CompanyPractice({
   const [startError, setStartError] = useState("");
   const [mockConfirm, setMockConfirm] = useState(false);
 
+  // Custom question sets for the selected company. The editor modal is closed
+  // when editorOpen is false; editorSet null means "create", non-null "edit".
+  const [sets, setSets] = useState<models.QuestionSet[]>([]);
+  const [loadingSets, setLoadingSets] = useState(false);
+  const [setsError, setSetsError] = useState("");
+  const [expandedSetId, setExpandedSetId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorSet, setEditorSet] = useState<models.QuestionSet | null>(null);
+  // Which set's mock-confirm modal is open (null = none) — a second instance of
+  // the pool-mock confirm, so both never show at once.
+  const [setMockTarget, setSetMockTarget] = useState<models.QuestionSet | null>(null);
+
   // Fetch the (static) company list once. Wails no-ops in a plain browser, so
   // guard with try/catch and surface failures inline.
   useEffect(() => {
@@ -161,6 +178,7 @@ export default function CompanyPractice({
 
   // loadProblems fetches a company's pool and shows its detail view at the given
   // difficulty. The low-level move, shared by user clicks and the mount restore.
+  // The company's custom question sets load in parallel (non-fatal on failure).
   async function loadProblems(c: models.CompanyInfo, diff: Difficulty) {
     setSelected(c);
     setDifficulty(diff);
@@ -168,7 +186,9 @@ export default function CompanyPractice({
     setProblems([]);
     setProblemsError("");
     setStartError("");
+    setExpandedSetId(null);
     setLoadingProblems(true);
+    void loadSets(c.slug);
     try {
       const list = await ListCompanyProblems(c.slug);
       setProblems(list ?? []);
@@ -176,6 +196,21 @@ export default function CompanyPractice({
       setProblemsError(e?.message || String(e));
     } finally {
       setLoadingProblems(false);
+    }
+  }
+
+  // loadSets fetches the company's custom question sets; failures surface in
+  // the sets section only, never blocking the rest of the page.
+  async function loadSets(slug: string) {
+    setLoadingSets(true);
+    setSetsError("");
+    try {
+      const list = await ListQuestionSets(slug);
+      setSets(list ?? []);
+    } catch (e: any) {
+      setSetsError(e?.message || String(e));
+    } finally {
+      setLoadingSets(false);
     }
   }
 
@@ -220,6 +255,12 @@ export default function CompanyPractice({
     setProblemsError("");
     setStartError("");
     setMockConfirm(false);
+    setSets([]);
+    setSetsError("");
+    setExpandedSetId(null);
+    setEditorOpen(false);
+    setEditorSet(null);
+    setSetMockTarget(null);
     onRemember?.("", difficulty); // leaving the company clears the resume target
   }
 
@@ -446,6 +487,44 @@ export default function CompanyPractice({
     } catch (e: any) {
       setStartError(e?.message || String(e));
     }
+  }
+
+  // startSetMock starts a mock drawn from a custom set (mirrors startMock: the
+  // confirm modal closes either way, errors land in the shared startError).
+  async function startSetMock(set: models.QuestionSet) {
+    if (starting) return;
+    setStarting(true);
+    setStartError("");
+    try {
+      const start = await StartSetMockInterview(set.id);
+      setSetMockTarget(null);
+      onStarted(start);
+    } catch (e: any) {
+      setStartError(e?.message || String(e));
+      setSetMockTarget(null);
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  // deleteSet removes a set and drops it from local state — no refetch needed
+  // (same shape as History's delete).
+  async function deleteSet(id: string) {
+    setSetsError("");
+    try {
+      await DeleteQuestionSet(id);
+      setSets((prev) => prev.filter((s) => s.id !== id));
+    } catch (e: any) {
+      setSetsError(e?.message || String(e));
+    }
+  }
+
+  // handleSetSaved closes the editor and re-reads the list so ordering matches
+  // the store's name sort.
+  function handleSetSaved() {
+    setEditorOpen(false);
+    setEditorSet(null);
+    if (selected) void loadSets(selected.slug);
   }
 
 // renderStarCard renders one pinned "Starred" band card. The whole card opens
@@ -691,6 +770,59 @@ export default function CompanyPractice({
 
             {startError && <p className="company-status error">{startError}</p>}
 
+            {/* Custom question sets: user-curated subsets of this pool. A mock
+                from a set draws from exactly those questions. */}
+            <div className="qsets-section">
+              <div className="co-label">
+                <span className="co-label-text">My sets</span>
+                <span className="co-label-hint">— curated from this pool</span>
+                <span className="co-label-rule" />
+                <button
+                  className="btn btn-ghost btn-icon qsets-new-btn"
+                  disabled={loadingProblems || !!problemsError}
+                  title="Build a set from this company's questions"
+                  onClick={() => {
+                    setEditorSet(null);
+                    setEditorOpen(true);
+                  }}
+                >
+                  <span className="material-symbols-outlined">add</span>
+                  New set
+                </button>
+              </div>
+
+              {loadingSets ? (
+                <p className="company-status">Loading sets…</p>
+              ) : setsError ? (
+                <p className="company-status error">{setsError}</p>
+              ) : sets.length === 0 ? (
+                <p className="qsets-empty">
+                  No sets yet — build one to drill exactly the questions you want.
+                </p>
+              ) : (
+                <div className="qsets-list">
+                  {sets.map((s) => (
+                    <QuestionSetCard
+                      key={s.id}
+                      set={s}
+                      starting={starting}
+                      expanded={expandedSetId === s.id}
+                      onToggleExpand={() =>
+                        setExpandedSetId(expandedSetId === s.id ? null : s.id)
+                      }
+                      onStartMock={() => setSetMockTarget(s)}
+                      onStartSingle={startSingle}
+                      onEdit={() => {
+                        setEditorSet(s);
+                        setEditorOpen(true);
+                      }}
+                      onDelete={() => void deleteSet(s.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Browse controls: difficulty chips + sort */}
             <div className="company-controls" ref={listTopRef}>
               <div className="company-chips">
@@ -823,6 +955,72 @@ export default function CompanyPractice({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Set-mock confirm modal — the pool-mock confirm's twin, scoped to one
+          custom set. The draw still happens on start, so nothing is spoiled. */}
+      {setMockTarget && selected && (
+        <div
+          className="company-modal-overlay"
+          onClick={() => !starting && setSetMockTarget(null)}
+        >
+          <div className="company-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Mock Interview · {setMockTarget.name}</h2>
+            <p className="company-modal-lead">
+              Two questions drawn from your set — an easier one first.
+            </p>
+            <ul className="company-modal-points">
+              <li>
+                <span className="material-symbols-outlined">
+                  {mockLimitMinutes > 0 ? "schedule" : "timer_off"}
+                </span>
+                {mockLimitMinutes > 0
+                  ? `~${mockLimitMinutes} minutes suggested`
+                  : "Untimed — practice at your own pace"}
+              </li>
+              <li>
+                <span className="material-symbols-outlined">visibility_off</span>
+                Questions are revealed one at a time — you won't see them up front.
+              </li>
+              <li>
+                <span className="material-symbols-outlined">forum</span>You can always
+                ask to move on, just like a real interview.
+              </li>
+            </ul>
+            <div className="company-modal-actions">
+              <button
+                className="btn btn-ghost"
+                onClick={() => setSetMockTarget(null)}
+                disabled={starting}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => void startSetMock(setMockTarget)}
+                disabled={starting}
+              >
+                {starting ? "Starting…" : "Begin Mock Interview"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Set editor modal (create when editorSet is null, edit otherwise). The
+          picker searches the already-loaded pool, so it opens instantly. */}
+      {editorOpen && selected && (
+        <SetEditor
+          companySlug={selected.slug}
+          companyName={selected.name}
+          pool={problems}
+          initial={editorSet}
+          onSaved={handleSetSaved}
+          onClose={() => {
+            setEditorOpen(false);
+            setEditorSet(null);
+          }}
+        />
       )}
     </div>
   );

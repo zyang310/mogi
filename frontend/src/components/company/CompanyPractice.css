@@ -877,6 +877,31 @@
   border-color: var(--primary);
 }
 
+/* ── My sets (custom question sets) ───────────────────────────────────────
+   Section shell only — the cards and the editor modal style themselves
+   (QuestionSetCard.css, SetEditor.css). */
+.qsets-section {
+  margin: 4px 0 20px;
+}
+
+/* The caption row's CTA sits after the flexing rule, so it right-aligns. */
+.qsets-new-btn {
+  flex: none;
+  padding: 5px 12px;
+}
+
+.qsets-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--on-surface-variant);
+}
+
+.qsets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 /* ── Mock confirm modal ────────────────────────────────────────────────── */
 .company-modal-overlay {
   position: fixed;

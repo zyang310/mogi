@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // Problem is one LeetCode problem in a company's question pool, shaped for the
 // Company Practice browse list and the mock draw. It carries factual metadata
 // only — never the problem statement (the screenshot carries that). URL is
@@ -35,4 +37,17 @@ type CompanySessionStart struct {
 	Company  string    `json:"company"`
 	Opening  string    `json:"opening"`
 	Problems []Problem `json:"problems"`
+}
+
+// QuestionSet is a user-curated, per-company named subset of that company's
+// question pool, persisted locally. Questions are full Problem snapshots taken
+// at edit time, so a set keeps working even if a later dataset refresh drops or
+// renames entries.
+type QuestionSet struct {
+	ID          string    `json:"id"`          // UUID; empty on first save, assigned by the backend
+	CompanySlug string    `json:"companySlug"` // owning company pool, e.g. "google"
+	Name        string    `json:"name"`        // user label, e.g. "My Google 50"
+	Questions   []Problem `json:"questions"`   // snapshots from the company pool; never nil
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }

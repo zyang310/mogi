@@ -32,6 +32,7 @@ type App struct {
 	voice     *service.Voice     // speech service: STT/TTS resolution + audio conversion
 	settings  *service.Settings  // keys + preferences, incl. capturer/hotkey propagation
 	account   *service.Account   // managed test-account: activation, launch refresh, sign-out
+	sets      *service.Sets      // custom question sets: per-company CRUD + validation
 
 	winZoom zoomState // custom green-button window zoom toggle (see window.go)
 
@@ -74,6 +75,7 @@ func NewApp() (*App, error) {
 		voice:     service.NewVoice(db, providers),
 		settings:  settings,
 		account:   account,
+		sets:      service.NewSets(db),
 	}
 
 	// Resolve the live provider registry from the stored keys for the current
@@ -239,6 +241,31 @@ func (a *App) ListStarredCompanies() ([]string, error) {
 // Idempotent.
 func (a *App) SetCompanyStarred(slug string, starred bool) error {
 	return a.settings.SetCompanyStarred(slug, starred)
+}
+
+// ListQuestionSets returns the user's custom question sets for a company,
+// name-ordered.
+func (a *App) ListQuestionSets(slug string) ([]models.QuestionSet, error) {
+	return a.sets.List(slug)
+}
+
+// SaveQuestionSet creates or updates a custom question set (a UUID is assigned
+// when the id is empty) and returns the stored set.
+func (a *App) SaveQuestionSet(set models.QuestionSet) (models.QuestionSet, error) {
+	return a.sets.Save(set)
+}
+
+// DeleteQuestionSet removes a custom question set. Past sessions started from
+// it are untouched.
+func (a *App) DeleteQuestionSet(id string) error {
+	return a.sets.Delete(id)
+}
+
+// StartSetMockInterview starts a two-problem mock drawn from a custom question
+// set — same draw shape as StartMockInterview (easier Q1, hidden Q2), but over
+// the user's curated pool.
+func (a *App) StartSetMockInterview(setID string) (models.CompanySessionStart, error) {
+	return a.interview.StartSetMock(a.ctx, setID)
 }
 
 // ---------------------------------------------------------------------------

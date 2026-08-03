@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -441,6 +442,124 @@ func TestStartCompanyInterview(t *testing.T) {
 			t.Fatalf("first start errored: %v", err)
 		}
 		if _, err := s.startCompanyInterview(context.Background(), "google", []models.Problem{q2}); err == nil {
+			t.Error("second start while active: should error")
+		}
+	})
+}
+
+// TestStartSetMock covers the custom-set mock start: the drawn pair comes from
+// the set's snapshots and flows into the shared company-start body, and
+// failures (missing set, too-small set) never create a session.
+func TestStartSetMock(t *testing.T) {
+	setQs := []models.Problem{
+		{Title: "Two Sum", Difficulty: "Easy", URL: "https://leetcode.com/problems/two-sum"},
+		{Title: "LRU Cache", Difficulty: "Medium", URL: "https://leetcode.com/problems/lru-cache"},
+		{Title: "Word Ladder", Difficulty: "Hard", URL: "https://leetcode.com/problems/word-ladder"},
+	}
+	members := map[string]bool{}
+	for _, q := range setQs {
+		members[q.Title] = true
+	}
+
+	t.Run("draws from the set", func(t *testing.T) {
+		var mode string
+		created := 0
+		st := &fakeStore{
+			getQuestionSet: func(id string) (models.QuestionSet, error) {
+				if id != "set-1" {
+					t.Errorf("GetQuestionSet(%q), want set-1", id)
+				}
+				return models.QuestionSet{ID: id, CompanySlug: "google", Name: "My drill", Questions: setQs}, nil
+			},
+			createSession: func(id, problemID, model string) (models.Session, error) {
+				created++
+				return models.Session{ID: id, ProblemID: problemID, Model: model}, nil
+			},
+			setSessionCompany: func(_, _, m string) error { mode = m; return nil },
+		}
+		s := interviewWith(st, &fakeAI{}, &fakeScreen{})
+
+		start, err := s.StartSetMock(context.Background(), "set-1")
+		if err != nil {
+			t.Fatalf("StartSetMock() error: %v", err)
+		}
+		if created != 1 {
+			t.Errorf("created %d sessions, want 1", created)
+		}
+		if mode != "mock" {
+			t.Errorf("mode = %q, want mock", mode)
+		}
+		if len(start.Problems) != 2 {
+			t.Fatalf("Problems has %d entries, want 2", len(start.Problems))
+		}
+		for _, p := range start.Problems {
+			if !members[p.Title] {
+				t.Errorf("drew %q, which is not in the set", p.Title)
+			}
+		}
+		if start.Problems[0].Title == start.Problems[1].Title {
+			t.Error("drew the same question twice")
+		}
+		if !strings.Contains(start.Opening, start.Problems[0].Title) || strings.Contains(start.Opening, start.Problems[1].Title) {
+			t.Errorf("opening %q must name Q1 and hide Q2", start.Opening)
+		}
+	})
+
+	t.Run("missing set never creates a session", func(t *testing.T) {
+		created := false
+		st := &fakeStore{
+			getQuestionSet: func(string) (models.QuestionSet, error) {
+				return models.QuestionSet{}, errors.New("store: get question set: no rows")
+			},
+			createSession: func(id, _, _ string) (models.Session, error) {
+				created = true
+				return models.Session{ID: id}, nil
+			},
+		}
+		s := interviewWith(st, &fakeAI{}, &fakeScreen{})
+		if _, err := s.StartSetMock(context.Background(), "nope"); err == nil {
+			t.Error("missing set: should error")
+		}
+		if created {
+			t.Error("missing set: must not create a session")
+		}
+	})
+
+	t.Run("one-question set errors without a session", func(t *testing.T) {
+		created := false
+		st := &fakeStore{
+			getQuestionSet: func(string) (models.QuestionSet, error) {
+				return models.QuestionSet{ID: "s", CompanySlug: "google", Name: "Tiny", Questions: setQs[:1]}, nil
+			},
+			createSession: func(id, _, _ string) (models.Session, error) {
+				created = true
+				return models.Session{ID: id}, nil
+			},
+		}
+		s := interviewWith(st, &fakeAI{}, &fakeScreen{})
+		_, err := s.StartSetMock(context.Background(), "s")
+		if err == nil {
+			t.Fatal("one-question set: should error")
+		}
+		if !strings.Contains(err.Error(), "Tiny") {
+			t.Errorf("error %q should name the set", err)
+		}
+		if created {
+			t.Error("a failed draw must not create a session")
+		}
+	})
+
+	t.Run("second start while active is guarded", func(t *testing.T) {
+		st := &fakeStore{
+			getQuestionSet: func(string) (models.QuestionSet, error) {
+				return models.QuestionSet{ID: "s", CompanySlug: "google", Name: "Drill", Questions: setQs}, nil
+			},
+		}
+		s := interviewWith(st, &fakeAI{}, &fakeScreen{})
+		if _, err := s.StartSetMock(context.Background(), "s"); err != nil {
+			t.Fatalf("first start errored: %v", err)
+		}
+		if _, err := s.StartSetMock(context.Background(), "s"); err == nil {
 			t.Error("second start while active: should error")
 		}
 	})
