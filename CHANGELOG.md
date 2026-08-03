@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.0](https://github.com/zyang310/mogi/compare/v0.14.1...v0.15.0) (2026-08-03)
+
+
+### Features
+
+* created user customization set of questions in companies ([4165e4f](https://github.com/zyang310/mogi/commit/4165e4f64070efea4ea03a7589420c10aad1dbb9))
+
+
+### Bug Fixes
+
+* end the interview once solved instead of inventing follow-ups ([740baa6](https://github.com/zyang310/mogi/commit/740baa68f410ea660652e82d16f29fe6dab266cd))
+
 ## [0.14.1](https://github.com/zyang310/mogi/compare/v0.14.0...v0.14.1) (2026-07-21)
 
 
