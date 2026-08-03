@@ -6,7 +6,7 @@
   (company-tagged question lists with interview frequencies and recency windows).
 - **Enrichment:** problem ids and acceptance rates are joined from LeetCode's
   public `algorithms` API — the same call that filters the data (below).
-- **Snapshot:** 2026-07-11
+- **Snapshot:** 2026-08-01
 - **Rows:** 13901 problems across 438 companies.
 - **Columns:** `company,id,slug,title,difficulty,frequency,acceptance,recent,name`.
 
