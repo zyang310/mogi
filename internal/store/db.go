@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -15,6 +16,9 @@ type DB struct {
 	path string // absolute path to data.db, for the Settings "reveal file" action
 }
 
+// appDirName is the app's folder under the OS config dir.
+const appDirName = "mogi"
+
 // Open creates the application data directory if needed, opens the SQLite
 // database, enables WAL mode, and runs the schema migrations.
 func Open() (*DB, error) {
@@ -25,8 +29,49 @@ func Open() (*DB, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("store: create data dir: %w", err)
 	}
+	return OpenAt(filepath.Join(dir, "data.db"))
+}
 
-	path := filepath.Join(dir, "data.db")
+// DefaultPath returns where the app keeps its database (on macOS,
+// ~/Library/Application Support/mogi/data.db). Unlike Open it never touches
+// the filesystem — no directory is created and no legacy one is renamed — so
+// read-only tools can locate the file safely.
+func DefaultPath() (string, error) {
+	cfg, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("store: resolve config dir: %w", err)
+	}
+	return filepath.Join(cfg, appDirName, "data.db"), nil
+}
+
+// OpenReadOnly opens an existing database without ever writing to it: SQLite's
+// read-only mode, no WAL switch, no migrations. It lets a dev tool (see
+// cmd/debrief-eval) read a user's data.db, even while the app is running. A
+// file from an older app version may lack newer columns, so open it with the
+// app once first.
+func OpenReadOnly(path string) (*DB, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("store: open read-only: %w", err)
+	}
+	// A "file:" URI is what lets SQLite honour mode=ro; escaping the path keeps
+	// spaces ("Application Support") and any '?' or '#' from breaking the URI.
+	uri := "file:" + (&url.URL{Path: path}).EscapedPath() + "?mode=ro&_foreign_keys=on"
+	conn, err := sql.Open("sqlite3", uri)
+	if err != nil {
+		return nil, fmt.Errorf("store: open db read-only: %w", err)
+	}
+	conn.SetMaxOpenConns(1)
+	if err := conn.Ping(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("store: open db read-only: %w", err)
+	}
+	return &DB{conn: conn, path: path}, nil
+}
+
+// OpenAt opens (creating if needed) the SQLite database at path, enables WAL
+// mode, and runs the schema migrations. Open uses it for the app's own file;
+// tests and dev tools use it for a database elsewhere.
+func OpenAt(path string) (*DB, error) {
 	conn, err := sql.Open("sqlite3", path+"?_foreign_keys=on")
 	if err != nil {
 		return nil, fmt.Errorf("store: open db: %w", err)
@@ -199,7 +244,7 @@ func appDataDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(cfg, "mogi")
+	dir := filepath.Join(cfg, appDirName)
 	legacy := filepath.Join(cfg, "ai-interviewer")
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if _, err := os.Stat(legacy); err == nil {

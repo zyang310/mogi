@@ -51,10 +51,12 @@ type ImageURL struct {
 	URL string `json:"url"`
 }
 
-// Client calls the OpenRouter chat completions API.
+// Client calls the OpenRouter chat completions API (and, for typed-decision
+// models such as Jev, the decisions API — see decisions.go).
 type Client struct {
-	apiKey     string
-	httpClient *http.Client
+	apiKey       string
+	httpClient   *http.Client
+	decisionsURL string // "" = openRouterDecisionsURL; overridable via SetDecisionsURL
 
 	// Cached model catalog. ListModels refreshes it lazily; mu guards both fields
 	// since Wails may invoke bound methods from different goroutines.
@@ -209,13 +211,9 @@ func normaliseDifficulty(d string) string {
 // the screenshot was already turned into text at session end, so no vision cost
 // here. Callers cache the result so it is generated at most once per session.
 func (c *Client) GenerateDebrief(ctx context.Context, model, transcript, finalCode string) (models.Debrief, error) {
-	content := transcript
-	if strings.TrimSpace(finalCode) != "" {
-		content += "\n\n=== Candidate's final code (transcribed from their screen) ===\n" + finalCode
-	}
 	messages := []ChatMessage{
 		{Role: "system", Content: DebriefPrompt},
-		{Role: "user", Content: content},
+		{Role: "user", Content: debriefContent(transcript, finalCode)},
 	}
 	raw, err := c.Complete(ctx, model, messages)
 	if err != nil {

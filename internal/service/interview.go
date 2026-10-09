@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 	"time"
 
@@ -433,7 +432,7 @@ func (s *Interview) extractSessionMeta(aiClient AI, sessionID, model, screenshot
 		return // too short to label meaningfully
 	}
 
-	meta, err := aiClient.ExtractSessionMeta(ctx, model, buildTranscript(msgs), screenshot)
+	meta, err := aiClient.ExtractSessionMeta(ctx, model, ai.BuildTranscript(msgs), screenshot)
 	if err != nil {
 		log.Printf("history: extract session meta: %v", err)
 		return
@@ -459,21 +458,4 @@ func (s *Interview) extractSessionMeta(aiClient AI, sessionID, model, screenshot
 	if err := s.store.UpdateSessionMeta(sessionID, title, difficulty, meta.Code); err != nil {
 		log.Printf("history: persist session meta: %v", err)
 	}
-}
-
-// buildTranscript renders stored messages as a plain "Speaker: text" transcript
-// for problem-metadata extraction and debrief generation.
-func buildTranscript(msgs []models.Message) string {
-	var b strings.Builder
-	for _, m := range msgs {
-		speaker := "Candidate"
-		if m.Role == "assistant" {
-			speaker = "Interviewer"
-		}
-		b.WriteString(speaker)
-		b.WriteString(": ")
-		b.WriteString(m.Content)
-		b.WriteString("\n")
-	}
-	return b.String()
 }

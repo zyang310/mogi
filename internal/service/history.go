@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"mogi/internal/ai"
 	"mogi/internal/models"
 )
 
@@ -99,7 +100,7 @@ func (h *History) Debrief(id string) (models.Debrief, error) {
 	//    request context may already be done by the time this runs.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	debrief, err := aiClient.GenerateDebrief(ctx, sess.Model, buildTranscript(msgs), finalCode)
+	debrief, err := aiClient.GenerateDebrief(ctx, sess.Model, ai.BuildTranscript(msgs), finalCode)
 	if err != nil {
 		return models.Debrief{}, err
 	}
