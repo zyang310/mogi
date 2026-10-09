@@ -57,6 +57,8 @@ function formatTime(sec: number): string {
 // MOCK_LIMIT_MINUTES is the fixed time budget for a mock interview (two problems),
 // sized to a real two-problem screen. Single-problem practice uses the user's
 // configured session limit instead; untimed (limit 0) stays untimed for both.
+// The backend's time-limit backstop mirrors this rule (mockLimitMinutes in
+// internal/service/interview.go) — keep the two in step.
 const MOCK_LIMIT_MINUTES = 45;
 
 function App() {

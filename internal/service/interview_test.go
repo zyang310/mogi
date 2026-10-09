@@ -130,6 +130,54 @@ func TestSendTimeLimitBackstop(t *testing.T) {
 	}
 }
 
+// TestSendMockTimeLimit verifies the backstop gives a mock interview its fixed
+// 45-minute budget — the same one the frontend timer shows — rather than the
+// configured limit, while single-problem sessions keep the configured limit and
+// an untimed configuration stays untimed.
+func TestSendMockTimeLimit(t *testing.T) {
+	q1 := models.Problem{Title: "Two Sum", Difficulty: "Easy"}
+	q2 := models.Problem{Title: "LRU Cache", Difficulty: "Medium"}
+	cases := []struct {
+		name        string
+		probs       []models.Problem
+		limit       int           // configured SessionLimitMinutes
+		elapsed     time.Duration // how long ago the session started
+		wantRefused bool
+	}{
+		{"mock past the configured limit is still in budget", []models.Problem{q1, q2}, 30, 31 * time.Minute, false},
+		{"mock past its 45-minute budget", []models.Problem{q1, q2}, 30, 46 * time.Minute, true},
+		{"untimed mock never expires", []models.Problem{q1, q2}, 0, 2 * time.Hour, false},
+		{"single problem keeps the configured limit", []models.Problem{q1}, 30, 31 * time.Minute, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			st := &fakeStore{
+				getPreferences: func() (models.Preferences, error) {
+					return models.Preferences{SessionLimitMinutes: c.limit}, nil
+				},
+				createSession: func(id, problemID, model string) (models.Session, error) {
+					return models.Session{ID: id, Model: model, StartedAt: time.Now().Add(-c.elapsed)}, nil
+				},
+			}
+			s := interviewWith(st, &fakeAI{complete: func(string, []ai.ChatMessage) (string, error) {
+				return "reply", nil
+			}}, &fakeScreen{})
+
+			if _, err := s.startCompanyInterview(context.Background(), "google", c.probs); err != nil {
+				t.Fatalf("startCompanyInterview() error: %v", err)
+			}
+			_, err := s.Send(context.Background(), "hi")
+			refused := err != nil && strings.Contains(err.Error(), "time limit")
+			if refused != c.wantRefused {
+				t.Errorf("Send() err = %v, want time-limit refusal = %v", err, c.wantRefused)
+			}
+			if !c.wantRefused && err != nil {
+				t.Errorf("Send() within budget failed: %v", err)
+			}
+		})
+	}
+}
+
 // TestSendHappyPath walks one full turn: screenshot attached, both turns
 // persisted, model history grown, reply returned.
 func TestSendHappyPath(t *testing.T) {

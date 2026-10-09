@@ -45,6 +45,28 @@ type InterviewStore interface {
 type activeSession struct {
 	session models.Session
 	history []ai.ChatMessage
+	// mock marks a two-problem mock interview, which runs on the fixed
+	// mockLimitMinutes budget instead of the configured session limit.
+	mock bool
+}
+
+// mockLimitMinutes is the fixed time budget for a two-problem mock interview,
+// sized to a real two-problem screen. It mirrors MOCK_LIMIT_MINUTES in
+// frontend/src/App.tsx, which drives the visible timer — keep the two in step.
+const mockLimitMinutes = 45
+
+// sessionLimit returns the time budget Send enforces: a mock gets the fixed mock
+// budget, any other session the configured limit, and an untimed configuration
+// (0) stays untimed for both. It is the same rule the frontend timer applies, so
+// the backstop never refuses a turn while the UI still shows time left.
+func sessionLimit(configuredMinutes int, mock bool) time.Duration {
+	if configuredMinutes <= 0 {
+		return 0
+	}
+	if mock {
+		return mockLimitMinutes * time.Minute
+	}
+	return time.Duration(configuredMinutes) * time.Minute
 }
 
 // Interview is the live-session service: it owns the active session (there is
@@ -190,8 +212,8 @@ func (s *Interview) Send(ctx context.Context, text string) (string, error) {
 	// Backend enforcement of the session time limit (the frontend also enforces
 	// this, so this is a backstop for edge cases like clock skew).
 	prefs, _ := s.store.GetPreferences()
-	if prefs.SessionLimitMinutes > 0 {
-		if time.Since(s.active.session.StartedAt) >= time.Duration(prefs.SessionLimitMinutes)*time.Minute {
+	if limit := sessionLimit(prefs.SessionLimitMinutes, s.active.mock); limit > 0 {
+		if time.Since(s.active.session.StartedAt) >= limit {
 			s.mu.Unlock()
 			return "", fmt.Errorf("session time limit reached — end the interview and start a new one")
 		}
@@ -343,6 +365,7 @@ func (s *Interview) startCompanyInterview(ctx context.Context, slug string, prob
 		history: []ai.ChatMessage{
 			{Role: "system", Content: ai.BuildCompanySystemPrompt(companyName, profile, probs)},
 		},
+		mock: mode == "mock",
 	}
 
 	// Persist the opener to the transcript only (not model history).
